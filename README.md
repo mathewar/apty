@@ -28,3 +28,7 @@ Apty provides a platform for people and APIs to plug in, both by providing data 
 ## Design notes 
 
 Structure as a web app + database
+
+## Contributions
+
+Very welcome - just getting started here. Need help from anyone who's set up an open source webapp before.
