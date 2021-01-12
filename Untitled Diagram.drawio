@@ -1,38 +1,40 @@
-<mxfile host="app.diagrams.net" modified="2021-01-11T23:59:51.869Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="qWL1EBWJA2gqiNaoKknc" version="14.1.9" type="github">
+<mxfile host="app.diagrams.net" modified="2021-01-12T00:08:53.190Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="OFklSzCpsv_0pe9aEger" version="14.1.9" type="github">
   <diagram id="s_aSqhqaMyfdKiyAlTjn" name="Page-1">
     <mxGraphModel dx="946" dy="578" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="ag201TZ68XxDRu8HjOaW-1" value="Tenants" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="200" y="320" width="170" height="40" as="geometry" />
+        <mxCell id="lQpMhwJ8H7eAtJrib6As-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="ag201TZ68XxDRu8HjOaW-5" target="lQpMhwJ8H7eAtJrib6As-4">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-2" value="Units" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="200" y="230" width="100" height="40" as="geometry" />
+        <mxCell id="ag201TZ68XxDRu8HjOaW-5" value="Plugins" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="133.75" y="130" width="537.5" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-4" value="Data" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="200" y="170" width="430" height="40" as="geometry" />
+        <mxCell id="ag201TZ68XxDRu8HjOaW-6" value="Elevator" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="140" y="100" width="90" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-5" value="Temperature" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="200" y="100" width="90" height="40" as="geometry" />
+        <mxCell id="ag201TZ68XxDRu8HjOaW-7" value="Water" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="240" y="100" width="90" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-6" value="Elevator" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="310" y="100" width="90" height="40" as="geometry" />
+        <mxCell id="ag201TZ68XxDRu8HjOaW-8" value="Electricity" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="340" y="100" width="90" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-7" value="Water" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="420" y="100" width="90" height="40" as="geometry" />
+        <mxCell id="lQpMhwJ8H7eAtJrib6As-2" value="Users : Tenants + Staff" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="129.38" y="320" width="540" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-8" value="Electricity" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="540" y="100" width="90" height="40" as="geometry" />
+        <mxCell id="lQpMhwJ8H7eAtJrib6As-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="lQpMhwJ8H7eAtJrib6As-4" target="lQpMhwJ8H7eAtJrib6As-2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="399.375" y="310" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-9" value="Staff" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="365" y="320" width="165" height="40" as="geometry" />
+        <mxCell id="lQpMhwJ8H7eAtJrib6As-4" value="Data store" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="1">
+          <mxGeometry x="268.75" y="200" width="261.25" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-10" value="Super" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="365" y="380" width="75" height="40" as="geometry" />
+        <mxCell id="lQpMhwJ8H7eAtJrib6As-8" value="Weather" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="100" width="90" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="ag201TZ68XxDRu8HjOaW-11" value="Board" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="200" y="280" width="330" height="40" as="geometry" />
+        <mxCell id="lQpMhwJ8H7eAtJrib6As-9" value="Public / city data" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="100" width="110" height="40" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
