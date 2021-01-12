@@ -1,1 +1,40 @@
-<mxfile host="app.diagrams.net" modified="2021-01-11T23:56:28.001Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" version="14.1.9" etag="YQRbbvI-QNm-Ew0RrWB2" type="github"><diagram id="s_aSqhqaMyfdKiyAlTjn">UzV2zq1wL0osyPDNT0nNUTV2VTV2LsrPL4GwciucU3NyVI0MMlNUjV1UjYwMgFjVyA2HrCFY1qAgsSg1rwSLBiADYTaQg2Y1AA==</diagram></mxfile>
+<mxfile host="app.diagrams.net" modified="2021-01-11T23:59:51.869Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36" etag="qWL1EBWJA2gqiNaoKknc" version="14.1.9" type="github">
+  <diagram id="s_aSqhqaMyfdKiyAlTjn" name="Page-1">
+    <mxGraphModel dx="946" dy="578" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ag201TZ68XxDRu8HjOaW-1" value="Tenants" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="320" width="170" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-2" value="Units" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="230" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-4" value="Data" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="170" width="430" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-5" value="Temperature" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="100" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-6" value="Elevator" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="310" y="100" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-7" value="Water" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="100" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-8" value="Electricity" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="100" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-9" value="Staff" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="365" y="320" width="165" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-10" value="Super" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="365" y="380" width="75" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ag201TZ68XxDRu8HjOaW-11" value="Board" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="280" width="330" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
