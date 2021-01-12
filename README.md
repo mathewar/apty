@@ -29,6 +29,9 @@ Apty provides a platform for people and APIs to plug in, both by providing data 
 
 Structure as a web app + database
 
+Diagram : https://viewer.diagrams.net/?highlight=0000ff&edit=_blank&layers=1&nav=1&title=data_arch.dataio#Uhttps%3A%2F%2Fraw.githubusercontent.com%2Fmathewar%2Fapty%2Fmain%2Fdata_arch.dataio
+TODO : Figure out how to embed this directly.
+
 ## Contributions
 
 Very welcome - just getting started here. Need help from anyone who's set up an open source webapp before.
