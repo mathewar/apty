@@ -10,7 +10,7 @@ jest.mock('../../src/persistence', () => ({
 test('it updates items correctly', async () => {
     const req = {
         params: { id: 1234 },
-        body: { name: 'New title'},
+        body: { name: 'New title' },
     };
     const res = { send: jest.fn() };
 

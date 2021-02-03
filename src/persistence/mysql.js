@@ -21,7 +21,7 @@ async function init() {
     const password = PASSWORD_FILE ? fs.readFileSync(PASSWORD_FILE) : PASSWORD;
     const database = DB_FILE ? fs.readFileSync(DB_FILE) : DB;
 
-    await waitPort({ host, port : 3306});
+    await waitPort({ host, port: 3306 });
 
     pool = mysql.createPool({
         connectionLimit: 5,
@@ -33,13 +33,13 @@ async function init() {
 
     return new Promise((acc, rej) => {
         pool.query(
-			'CREATE TABLE IF NOT EXISTS homes (id varchar(36), parent_id varchar(36), name varchar(255), details JSON)',
+            'CREATE TABLE IF NOT EXISTS homes (id varchar(36), parent_id varchar(36), name varchar(255), details JSON)',
             err => {
                 if (err) return rej(err);
                 console.log(`Connected to mysql db at host ${HOST}`);
                 acc();
             },
-		);
+        );
     });
 }
 
@@ -56,11 +56,7 @@ async function getHomes() {
     return new Promise((acc, rej) => {
         pool.query('SELECT * FROM homes', (err, rows) => {
             if (err) return rej(err);
-            acc(
-                rows.map(item =>
-                    Object.assign({}, item),
-                ),
-            );
+            acc(rows.map(item => Object.assign({}, item)));
         });
     });
 }
@@ -69,11 +65,7 @@ async function getHome(id) {
     return new Promise((acc, rej) => {
         pool.query('SELECT * FROM homes WHERE id=?', [id], (err, rows) => {
             if (err) return rej(err);
-            acc(
-                rows.map(item =>
-                    Object.assign({}, item),
-                )[0],
-            );
+            acc(rows.map(item => Object.assign({}, item))[0]);
         });
     });
 }
