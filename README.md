@@ -22,8 +22,9 @@ Apty provides a platform for people and APIs to plug in, both by providing data 
 
 ## Engineering stack
 
-  * Next.js
+  * Node.JS
   * MySQL
+  * Docker
   
 ## Design notes 
 
