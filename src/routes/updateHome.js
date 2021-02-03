@@ -1,10 +1,10 @@
 const db = require('../persistence');
 
 module.exports = async (req, res) => {
-    await db.updateItem(req.params.id, {
+    await db.updateHome(req.params.id, {
         name: req.body.name,
-        completed: req.body.completed,
+        // completed: req.body.completed,
     });
-    const item = await db.getItem(req.params.id);
+    const item = await db.getHome(req.params.id);
     res.send(item);
 };

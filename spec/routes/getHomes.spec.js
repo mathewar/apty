@@ -1,19 +1,19 @@
 const db = require('../../src/persistence');
-const getItems = require('../../src/routes/getItems');
+const getHomes = require('../../src/routes/getHomes');
 const ITEMS = [{ id: 12345 }];
 
 jest.mock('../../src/persistence', () => ({
-    getItems: jest.fn(),
+    getHomes: jest.fn(),
 }));
 
 test('it gets items correctly', async () => {
     const req = {};
     const res = { send: jest.fn() };
-    db.getItems.mockReturnValue(Promise.resolve(ITEMS));
+    db.getHomes.mockReturnValue(Promise.resolve(ITEMS));
 
-    await getItems(req, res);
+    await getHomes(req, res);
 
-    expect(db.getItems.mock.calls.length).toBe(1);
+    expect(db.getHomes.mock.calls.length).toBe(1);
     expect(res.send.mock.calls[0].length).toBe(1);
     expect(res.send.mock.calls[0][0]).toEqual(ITEMS);
 });

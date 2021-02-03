@@ -33,14 +33,13 @@ async function init() {
 
     return new Promise((acc, rej) => {
         pool.query(
-            'CREATE TABLE IF NOT EXISTS todo_items (id varchar(36), name varchar(255), completed boolean)',
+			'CREATE TABLE IF NOT EXISTS homes (id varchar(36), parent_id varchar(36), name varchar(255), details JSON)',
             err => {
                 if (err) return rej(err);
-
                 console.log(`Connected to mysql db at host ${HOST}`);
                 acc();
             },
-        );
+		);
     });
 }
 
@@ -53,41 +52,37 @@ async function teardown() {
     });
 }
 
-async function getItems() {
+async function getHomes() {
     return new Promise((acc, rej) => {
-        pool.query('SELECT * FROM todo_items', (err, rows) => {
+        pool.query('SELECT * FROM homes', (err, rows) => {
             if (err) return rej(err);
             acc(
                 rows.map(item =>
-                    Object.assign({}, item, {
-                        completed: item.completed === 1,
-                    }),
+                    Object.assign({}, item),
                 ),
             );
         });
     });
 }
 
-async function getItem(id) {
+async function getHome(id) {
     return new Promise((acc, rej) => {
-        pool.query('SELECT * FROM todo_items WHERE id=?', [id], (err, rows) => {
+        pool.query('SELECT * FROM homes WHERE id=?', [id], (err, rows) => {
             if (err) return rej(err);
             acc(
                 rows.map(item =>
-                    Object.assign({}, item, {
-                        completed: item.completed === 1,
-                    }),
+                    Object.assign({}, item),
                 )[0],
             );
         });
     });
 }
 
-async function storeItem(item) {
+async function storeHome(item) {
     return new Promise((acc, rej) => {
         pool.query(
-            'INSERT INTO todo_items (id, name, completed) VALUES (?, ?, ?)',
-            [item.id, item.name, item.completed ? 1 : 0],
+            'INSERT INTO homes (id, name) VALUES (?, ?)',
+            [item.id, item.name],
             err => {
                 if (err) return rej(err);
                 acc();
@@ -96,11 +91,11 @@ async function storeItem(item) {
     });
 }
 
-async function updateItem(id, item) {
+async function updateHome(id, item) {
     return new Promise((acc, rej) => {
         pool.query(
-            'UPDATE todo_items SET name=?, completed=? WHERE id=?',
-            [item.name, item.completed ? 1 : 0, id],
+            'UPDATE homes SET name=? WHERE id=?',
+            [item.name, item.id],
             err => {
                 if (err) return rej(err);
                 acc();
@@ -109,9 +104,9 @@ async function updateItem(id, item) {
     });
 }
 
-async function removeItem(id) {
+async function removeHome(id) {
     return new Promise((acc, rej) => {
-        pool.query('DELETE FROM todo_items WHERE id = ?', [id], err => {
+        pool.query('DELETE FROM homes WHERE id = ?', [id], err => {
             if (err) return rej(err);
             acc();
         });
@@ -121,9 +116,9 @@ async function removeItem(id) {
 module.exports = {
     init,
     teardown,
-    getItems,
-    getItem,
-    storeItem,
-    updateItem,
-    removeItem,
+    getHomes,
+    getHome,
+    storeHome,
+    updateHome,
+    removeHome,
 };

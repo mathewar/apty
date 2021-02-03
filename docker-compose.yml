@@ -13,15 +13,15 @@ services:
       MYSQL_HOST: mysql
       MYSQL_USER: root
       MYSQL_PASSWORD: secret
-      MYSQL_DB: todos
+      MYSQL_DB: apty
 
   mysql:
     image: mysql:5.7
     volumes:
-      - todo-mysql-data:/var/lib/mysql
+      - apty-mysql-data:/var/lib/mysql
     environment: 
       MYSQL_ROOT_PASSWORD: secret
-      MYSQL_DATABASE: todos
+      MYSQL_DATABASE: apty
 
 volumes:
-  todo-mysql-data:
+  apty-mysql-data:
