@@ -2,24 +2,26 @@ version: "3.7"
 
 services:
   app:
-    image: node:12-alpine
+    image: node:18-alpine
     command: sh -c "yarn install && yarn run dev"
     ports:
       - 3000:3000
     working_dir: /app
     volumes:
       - ./:/app
+      - ./data/documents:/app/data/documents
     environment:
       MYSQL_HOST: mysql
       MYSQL_USER: root
       MYSQL_PASSWORD: secret
       MYSQL_DB: apty
+      SESSION_SECRET: change-me-in-production
 
   mysql:
     image: mysql:5.7
     volumes:
       - apty-mysql-data:/var/lib/mysql
-    environment: 
+    environment:
       MYSQL_ROOT_PASSWORD: secret
       MYSQL_DATABASE: apty
 
