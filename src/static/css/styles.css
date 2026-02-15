@@ -1,39 +1,148 @@
 body {
-    background-color: #f4f4f4;
-    margin-top: 50px;
-    font-family: 'Lato';
+    background-color: #f5f6fa;
+    font-family: 'Lato', sans-serif;
+    margin: 0;
+    padding: 0;
 }
 
-.item {
-    background-color: white;
-    padding: 15px;
-    margin-bottom: 15px;
-    border: transparent;
-    border-radius: 5px;
-    box-shadow: 0 0 1em #ccc;
-    transition: all .2s ease-in-out;
+/* ── Navbar ── */
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.4rem;
 }
 
-.item:hover {
-    box-shadow: 0 0 1em #aaa;
+/* ── Sidebar ── */
+.sidebar {
+    background: #2c3e50;
+    min-height: calc(100vh - 56px);
+    padding-top: 1rem;
+}
+.sidebar .nav-link {
+    color: #bdc3c7;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    margin: 2px 8px;
+}
+.sidebar .nav-link:hover {
+    background: #34495e;
+    color: #ecf0f1;
+}
+.sidebar .nav-link.active {
+    background: #3498db;
+    color: white;
+}
+.sidebar .nav-link i {
+    width: 20px;
+    text-align: center;
+    margin-right: 8px;
+}
+.sidebar .sidebar-heading {
+    color: #7f8c8d;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0.8rem 1.2rem 0.3rem;
+    margin-top: 0.5rem;
 }
 
-.item.completed {
-    text-decoration: line-through;
+/* ── Content area ── */
+.main-content {
+    padding: 1.5rem;
+    min-height: calc(100vh - 56px);
 }
 
-.toggles {
-    color: black;
+/* ── Cards ── */
+.stat-card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.15s;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+.stat-card .card-body {
+    padding: 1.2rem;
+}
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.stat-label {
+    font-size: 0.8rem;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.name {
-    padding-top: 3px;
+/* ── Tables ── */
+.table-card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.table-card .card-header {
+    background: white;
+    border-bottom: 2px solid #f0f0f0;
+    font-weight: 600;
+}
+.table-card table {
+    margin-bottom: 0;
+}
+.table-card th {
+    border-top: none;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #7f8c8d;
+    letter-spacing: 0.5px;
 }
 
-.remove {
-    padding-left: 0;
-}
+/* ── Status badges ── */
+.badge-open { background-color: #e74c3c; }
+.badge-in_progress { background-color: #f39c12; }
+.badge-resolved, .badge-closed, .badge-completed { background-color: #27ae60; }
+.badge-waiting_parts { background-color: #8e44ad; }
+.badge-pending { background-color: #95a5a6; }
+.badge-paid { background-color: #27ae60; }
+.badge-late { background-color: #e74c3c; }
+.badge-occupied { background-color: #27ae60; }
+.badge-vacant { background-color: #e74c3c; }
+.badge-renovating { background-color: #f39c12; }
+.badge-upcoming { background-color: #3498db; }
+.badge-overdue { background-color: #e74c3c; }
+.badge-submitted { background-color: #3498db; }
+.badge-under_review { background-color: #f39c12; }
+.badge-approved { background-color: #27ae60; }
+.badge-denied { background-color: #e74c3c; }
 
-button:focus {
-    border: 1px solid #333;
+/* ── Priority ── */
+.priority-emergency, .priority-high { color: #e74c3c; font-weight: 600; }
+.priority-normal { color: #2c3e50; }
+.priority-low { color: #95a5a6; }
+
+/* ── Announcements ── */
+.announcement-card {
+    border-left: 4px solid #3498db;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.announcement-card.category-emergency { border-left-color: #e74c3c; }
+.announcement-card.category-maintenance { border-left-color: #f39c12; }
+.announcement-card.category-meeting { border-left-color: #9b59b6; }
+
+/* ── Forms ── */
+.modal-header {
+    background: #2c3e50;
+    color: white;
+}
+.modal-header .close { color: white; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .sidebar { min-height: auto; }
+    .stat-number { font-size: 1.5rem; }
 }
