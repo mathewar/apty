@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(36) PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  resident_id VARCHAR(36),
+  role VARCHAR(20) DEFAULT 'resident',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (resident_id) REFERENCES residents(id)
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  session_id VARCHAR(128) PRIMARY KEY,
+  expires INT UNSIGNED NOT NULL,
+  data MEDIUMTEXT
+);
