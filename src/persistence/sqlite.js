@@ -1,40 +1,38 @@
-const waitPort = require('wait-port');
+const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql');
 
-const {
-    MYSQL_HOST: HOST,
-    MYSQL_HOST_FILE: HOST_FILE,
-    MYSQL_USER: USER,
-    MYSQL_USER_FILE: USER_FILE,
-    MYSQL_PASSWORD: PASSWORD,
-    MYSQL_PASSWORD_FILE: PASSWORD_FILE,
-    MYSQL_DB: DB,
-    MYSQL_DB_FILE: DB_FILE,
-} = process.env;
+const DB_PATH = process.env.SQLITE_DB || path.join(__dirname, '..', '..', 'data', 'apty.db');
 
-let pool;
+let db;
 
-function query(sql, params) {
-    return new Promise((resolve, reject) => {
-        pool.query(sql, params, (err, results) => {
-            if (err) return reject(err);
-            resolve(results);
-        });
-    });
+function query(sql, params = []) {
+    // Rewrite MySQL-isms for SQLite
+    sql = sql.replace(/NOW\(\)/g, "datetime('now')");
+    sql = sql.replace(/MEDIUMTEXT/gi, 'TEXT');
+    sql = sql.replace(/INT UNSIGNED/gi, 'INTEGER');
+    sql = sql.replace(/JSON/gi, 'TEXT');
+
+    const trimmed = sql.trim().toUpperCase();
+    if (
+        trimmed.startsWith('SELECT') ||
+        trimmed.startsWith('PRAGMA') ||
+        trimmed.startsWith('WITH')
+    ) {
+        return db.prepare(sql).all(...params);
+    }
+    const result = db.prepare(sql).run(...params);
+    return result;
 }
 
-async function runMigrations() {
-    await query(
-        `CREATE TABLE IF NOT EXISTS migrations (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL UNIQUE,
-            applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`,
-    );
+function runMigrations() {
+    db.exec(`CREATE TABLE IF NOT EXISTS migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        applied_at TEXT DEFAULT (datetime('now'))
+    )`);
 
-    const applied = await query('SELECT name FROM migrations');
+    const applied = db.prepare('SELECT name FROM migrations').all();
     const appliedSet = new Set(applied.map(r => r.name));
 
     const migrationsDir = path.join(__dirname, 'migrations');
@@ -45,369 +43,261 @@ async function runMigrations() {
 
     for (const file of files) {
         if (appliedSet.has(file)) continue;
-        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+        let sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+        // Adapt MySQL DDL for SQLite
+        sql = sql.replace(/MEDIUMTEXT/gi, 'TEXT');
+        sql = sql.replace(/INT UNSIGNED/gi, 'INTEGER');
+        sql = sql.replace(/JSON/gi, 'TEXT');
         const statements = sql
             .split(';')
             .map(s => s.trim())
             .filter(s => s.length > 0);
         for (const statement of statements) {
-            await query(statement);
+            db.exec(statement);
         }
-        await query('INSERT INTO migrations (name) VALUES (?)', [file]);
+        db.prepare('INSERT INTO migrations (name) VALUES (?)').run(file);
         console.log(`Migration applied: ${file}`);
     }
 }
 
 async function init() {
-    const host = HOST_FILE
-        ? fs.readFileSync(HOST_FILE, 'utf8').trim()
-        : HOST;
-    const user = USER_FILE
-        ? fs.readFileSync(USER_FILE, 'utf8').trim()
-        : USER;
-    const password = PASSWORD_FILE
-        ? fs.readFileSync(PASSWORD_FILE, 'utf8').trim()
-        : PASSWORD;
-    const database = DB_FILE
-        ? fs.readFileSync(DB_FILE, 'utf8').trim()
-        : DB;
-
-    await waitPort({ host, port: 3306 });
-
-    pool = mysql.createPool({
-        connectionLimit: 5,
-        host,
-        user,
-        password,
-        database,
-    });
-
-    await runMigrations();
-    console.log(`Connected to mysql db at host ${host}`);
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    runMigrations();
+    console.log(`Connected to SQLite db at ${DB_PATH}`);
 }
 
 async function teardown() {
-    return new Promise((resolve, reject) => {
-        pool.end(err => {
-            if (err) reject(err);
-            else resolve();
-        });
-    });
+    if (db) db.close();
 }
 
 // ── Legacy homes CRUD ──
-
 async function getHomes() {
-    const rows = await query('SELECT * FROM homes');
-    return rows.map(item => Object.assign({}, item));
+    return query('SELECT * FROM homes');
 }
-
 async function getHome(id) {
-    const rows = await query('SELECT * FROM homes WHERE id=?', [id]);
-    return rows.map(item => Object.assign({}, item))[0];
+    return query('SELECT * FROM homes WHERE id=?', [id])[0];
 }
-
 async function storeHome(item) {
-    await query('INSERT INTO homes (id, name) VALUES (?, ?)', [
-        item.id,
-        item.name,
-    ]);
+    query('INSERT INTO homes (id, name) VALUES (?, ?)', [item.id, item.name]);
 }
-
 async function updateHome(id, item) {
-    await query('UPDATE homes SET name=? WHERE id=?', [item.name, id]);
+    query('UPDATE homes SET name=? WHERE id=?', [item.name, id]);
 }
-
 async function removeHome(id) {
-    await query('DELETE FROM homes WHERE id = ?', [id]);
+    query('DELETE FROM homes WHERE id = ?', [id]);
 }
 
 // ── Building ──
-
 async function getBuilding() {
-    const rows = await query('SELECT * FROM building LIMIT 1');
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query('SELECT * FROM building LIMIT 1')[0] || null;
 }
-
 async function upsertBuilding(b) {
     const existing = await getBuilding();
     if (existing) {
-        await query(
+        query(
             `UPDATE building SET name=?, address=?, city=?, state=?, zip=?,
              year_built=?, total_floors=?, total_units=?, building_type=?, details=?
              WHERE id=?`,
-            [
-                b.name, b.address, b.city, b.state, b.zip,
-                b.year_built, b.total_floors, b.total_units, b.building_type,
-                JSON.stringify(b.details || null), existing.id,
-            ],
+            [b.name, b.address, b.city, b.state, b.zip,
+             b.year_built, b.total_floors, b.total_units, b.building_type,
+             JSON.stringify(b.details || null), existing.id],
         );
         return Object.assign({}, existing, b);
     }
-    await query(
+    query(
         `INSERT INTO building (id, name, address, city, state, zip, year_built,
          total_floors, total_units, building_type, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            b.id, b.name, b.address, b.city, b.state, b.zip,
-            b.year_built, b.total_floors, b.total_units, b.building_type,
-            JSON.stringify(b.details || null),
-        ],
+        [b.id, b.name, b.address, b.city, b.state, b.zip,
+         b.year_built, b.total_floors, b.total_units, b.building_type,
+         JSON.stringify(b.details || null)],
     );
     return b;
 }
 
 // ── Units ──
-
 async function getUnits(buildingId) {
-    const rows = buildingId
-        ? await query(
-              'SELECT * FROM units WHERE building_id=? ORDER BY floor, unit_number',
-              [buildingId],
-          )
-        : await query('SELECT * FROM units ORDER BY floor, unit_number');
-    return rows.map(r => Object.assign({}, r));
+    return buildingId
+        ? query('SELECT * FROM units WHERE building_id=? ORDER BY floor, unit_number', [buildingId])
+        : query('SELECT * FROM units ORDER BY floor, unit_number');
 }
-
 async function getUnit(id) {
-    const rows = await query('SELECT * FROM units WHERE id=?', [id]);
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query('SELECT * FROM units WHERE id=?', [id])[0] || null;
 }
-
 async function storeUnit(u) {
-    await query(
+    query(
         `INSERT INTO units (id, building_id, unit_number, floor, rooms,
          square_feet, shares, monthly_maintenance, status, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            u.id, u.building_id, u.unit_number, u.floor, u.rooms,
-            u.square_feet, u.shares, u.monthly_maintenance,
-            u.status || 'occupied', JSON.stringify(u.details || null),
-        ],
+        [u.id, u.building_id, u.unit_number, u.floor, u.rooms,
+         u.square_feet, u.shares, u.monthly_maintenance,
+         u.status || 'occupied', JSON.stringify(u.details || null)],
     );
 }
-
 async function updateUnit(id, u) {
-    await query(
+    query(
         `UPDATE units SET unit_number=?, floor=?, rooms=?, square_feet=?,
          shares=?, monthly_maintenance=?, status=?, details=? WHERE id=?`,
-        [
-            u.unit_number, u.floor, u.rooms, u.square_feet, u.shares,
-            u.monthly_maintenance, u.status, JSON.stringify(u.details || null),
-            id,
-        ],
+        [u.unit_number, u.floor, u.rooms, u.square_feet, u.shares,
+         u.monthly_maintenance, u.status, JSON.stringify(u.details || null), id],
     );
 }
-
 async function removeUnit(id) {
-    await query('DELETE FROM units WHERE id=?', [id]);
+    query('DELETE FROM units WHERE id=?', [id]);
 }
 
 // ── Residents ──
-
 async function getResidents(filters) {
     let sql = 'SELECT * FROM residents WHERE 1=1';
     const params = [];
-    if (filters && filters.unit_id) {
-        sql += ' AND unit_id=?';
-        params.push(filters.unit_id);
-    }
-    if (filters && filters.role) {
-        sql += ' AND role=?';
-        params.push(filters.role);
-    }
+    if (filters && filters.unit_id) { sql += ' AND unit_id=?'; params.push(filters.unit_id); }
+    if (filters && filters.role) { sql += ' AND role=?'; params.push(filters.role); }
     sql += ' ORDER BY last_name, first_name';
-    const rows = await query(sql, params);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql, params);
 }
-
 async function getResident(id) {
-    const rows = await query('SELECT * FROM residents WHERE id=?', [id]);
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query('SELECT * FROM residents WHERE id=?', [id])[0] || null;
 }
-
 async function storeResident(r) {
-    await query(
+    query(
         `INSERT INTO residents (id, unit_id, first_name, last_name, email,
          phone, role, is_primary, move_in_date, shares_held, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            r.id, r.unit_id, r.first_name, r.last_name, r.email, r.phone,
-            r.role || 'shareholder', r.is_primary || false, r.move_in_date,
-            r.shares_held, JSON.stringify(r.details || null),
-        ],
+        [r.id, r.unit_id, r.first_name, r.last_name, r.email, r.phone,
+         r.role || 'shareholder', r.is_primary ? 1 : 0, r.move_in_date,
+         r.shares_held, JSON.stringify(r.details || null)],
     );
 }
-
 async function updateResident(id, r) {
-    await query(
+    query(
         `UPDATE residents SET unit_id=?, first_name=?, last_name=?, email=?,
          phone=?, role=?, is_primary=?, move_in_date=?, move_out_date=?,
          shares_held=?, details=? WHERE id=?`,
-        [
-            r.unit_id, r.first_name, r.last_name, r.email, r.phone,
-            r.role, r.is_primary, r.move_in_date, r.move_out_date,
-            r.shares_held, JSON.stringify(r.details || null), id,
-        ],
+        [r.unit_id, r.first_name, r.last_name, r.email, r.phone,
+         r.role, r.is_primary, r.move_in_date, r.move_out_date,
+         r.shares_held, JSON.stringify(r.details || null), id],
     );
 }
-
 async function removeResident(id) {
-    await query('DELETE FROM residents WHERE id=?', [id]);
+    query('DELETE FROM residents WHERE id=?', [id]);
 }
 
 // ── Board Members ──
-
 async function getBoardMembers(activeOnly) {
     const sql = activeOnly
         ? `SELECT bm.*, r.first_name, r.last_name, r.email
            FROM board_members bm JOIN residents r ON bm.resident_id=r.id
-           WHERE bm.is_active=TRUE
-           ORDER BY FIELD(bm.role, 'president','vice_president','treasurer','secretary','member')`
+           WHERE bm.is_active=1
+           ORDER BY CASE bm.role
+             WHEN 'president' THEN 1 WHEN 'vice_president' THEN 2
+             WHEN 'treasurer' THEN 3 WHEN 'secretary' THEN 4 ELSE 5 END`
         : `SELECT bm.*, r.first_name, r.last_name, r.email
            FROM board_members bm JOIN residents r ON bm.resident_id=r.id
            ORDER BY bm.is_active DESC, bm.term_start DESC`;
-    const rows = await query(sql);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql);
 }
-
 async function storeBoardMember(bm) {
-    await query(
+    query(
         `INSERT INTO board_members (id, resident_id, role, term_start, term_end, is_active)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [bm.id, bm.resident_id, bm.role, bm.term_start, bm.term_end, bm.is_active !== false],
+        [bm.id, bm.resident_id, bm.role, bm.term_start, bm.term_end, bm.is_active !== false ? 1 : 0],
     );
 }
-
 async function updateBoardMember(id, bm) {
-    await query(
+    query(
         'UPDATE board_members SET role=?, term_start=?, term_end=?, is_active=? WHERE id=?',
-        [bm.role, bm.term_start, bm.term_end, bm.is_active, id],
+        [bm.role, bm.term_start, bm.term_end, bm.is_active ? 1 : 0, id],
     );
 }
-
 async function removeBoardMember(id) {
-    await query('DELETE FROM board_members WHERE id=?', [id]);
+    query('DELETE FROM board_members WHERE id=?', [id]);
 }
 
 // ── Announcements ──
-
 async function getAnnouncements() {
-    const rows = await query(
+    return query(
         `SELECT a.*, r.first_name, r.last_name FROM announcements a
          LEFT JOIN residents r ON a.posted_by=r.id
          ORDER BY a.posted_at DESC`,
     );
-    return rows.map(r => Object.assign({}, r));
 }
-
 async function getAnnouncement(id) {
-    const rows = await query('SELECT * FROM announcements WHERE id=?', [id]);
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query('SELECT * FROM announcements WHERE id=?', [id])[0] || null;
 }
-
 async function storeAnnouncement(a) {
-    await query(
+    query(
         `INSERT INTO announcements (id, title, body, category, posted_by, expires_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [a.id, a.title, a.body, a.category, a.posted_by, a.expires_at],
     );
 }
-
 async function updateAnnouncement(id, a) {
-    await query(
+    query(
         'UPDATE announcements SET title=?, body=?, category=?, expires_at=? WHERE id=?',
         [a.title, a.body, a.category, a.expires_at, id],
     );
 }
-
 async function removeAnnouncement(id) {
-    await query('DELETE FROM announcements WHERE id=?', [id]);
+    query('DELETE FROM announcements WHERE id=?', [id]);
 }
 
 // ── Documents ──
-
 async function getDocuments(category) {
-    let sql =
-        'SELECT d.*, r.first_name, r.last_name FROM documents d LEFT JOIN residents r ON d.uploaded_by=r.id';
+    let sql = 'SELECT d.*, r.first_name, r.last_name FROM documents d LEFT JOIN residents r ON d.uploaded_by=r.id';
     const params = [];
-    if (category) {
-        sql += ' WHERE d.category=?';
-        params.push(category);
-    }
+    if (category) { sql += ' WHERE d.category=?'; params.push(category); }
     sql += ' ORDER BY d.uploaded_at DESC';
-    const rows = await query(sql, params);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql, params);
 }
-
 async function storeDocument(d) {
-    await query(
+    query(
         `INSERT INTO documents (id, title, category, file_path, uploaded_by, details)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [d.id, d.title, d.category, d.file_path, d.uploaded_by, JSON.stringify(d.details || null)],
     );
 }
-
 async function removeDocument(id) {
-    const rows = await query('SELECT * FROM documents WHERE id=?', [id]);
-    await query('DELETE FROM documents WHERE id=?', [id]);
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    const rows = query('SELECT * FROM documents WHERE id=?', [id]);
+    query('DELETE FROM documents WHERE id=?', [id]);
+    return rows[0] || null;
 }
 
 // ── Maintenance Requests ──
-
 async function getMaintenanceRequests(filters) {
     let sql = `SELECT mr.*, r.first_name, r.last_name, u.unit_number
                FROM maintenance_requests mr
                LEFT JOIN residents r ON mr.submitted_by=r.id
                LEFT JOIN units u ON mr.unit_id=u.id WHERE 1=1`;
     const params = [];
-    if (filters && filters.status) {
-        sql += ' AND mr.status=?';
-        params.push(filters.status);
-    }
-    if (filters && filters.unit_id) {
-        sql += ' AND mr.unit_id=?';
-        params.push(filters.unit_id);
-    }
-    if (filters && filters.submitted_by) {
-        sql += ' AND mr.submitted_by=?';
-        params.push(filters.submitted_by);
-    }
-    if (filters && filters.priority) {
-        sql += ' AND mr.priority=?';
-        params.push(filters.priority);
-    }
+    if (filters && filters.status) { sql += ' AND mr.status=?'; params.push(filters.status); }
+    if (filters && filters.unit_id) { sql += ' AND mr.unit_id=?'; params.push(filters.unit_id); }
+    if (filters && filters.submitted_by) { sql += ' AND mr.submitted_by=?'; params.push(filters.submitted_by); }
+    if (filters && filters.priority) { sql += ' AND mr.priority=?'; params.push(filters.priority); }
     sql += ' ORDER BY mr.created_at DESC';
-    const rows = await query(sql, params);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql, params);
 }
-
 async function getMaintenanceRequest(id) {
-    const rows = await query(
+    return query(
         `SELECT mr.*, r.first_name, r.last_name, u.unit_number
          FROM maintenance_requests mr
          LEFT JOIN residents r ON mr.submitted_by=r.id
          LEFT JOIN units u ON mr.unit_id=u.id
-         WHERE mr.id=?`,
-        [id],
-    );
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+         WHERE mr.id=?`, [id],
+    )[0] || null;
 }
-
 async function storeMaintenanceRequest(mr) {
-    await query(
+    query(
         `INSERT INTO maintenance_requests
          (id, unit_id, submitted_by, title, description, location, priority, status, assigned_to)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            mr.id, mr.unit_id, mr.submitted_by, mr.title, mr.description,
-            mr.location, mr.priority || 'normal', mr.status || 'open',
-            mr.assigned_to,
-        ],
+        [mr.id, mr.unit_id, mr.submitted_by, mr.title, mr.description,
+         mr.location, mr.priority || 'normal', mr.status || 'open', mr.assigned_to],
     );
 }
-
 async function updateMaintenanceRequest(id, mr) {
     const sets = [];
     const params = [];
@@ -418,37 +308,31 @@ async function updateMaintenanceRequest(id, mr) {
     if (mr.status !== undefined) { sets.push('status=?'); params.push(mr.status); }
     if (mr.assigned_to !== undefined) { sets.push('assigned_to=?'); params.push(mr.assigned_to); }
     if (mr.resolved_at !== undefined) { sets.push('resolved_at=?'); params.push(mr.resolved_at); }
-    sets.push('updated_at=NOW()');
+    sets.push("updated_at=datetime('now')");
     params.push(id);
-    await query(`UPDATE maintenance_requests SET ${sets.join(', ')} WHERE id=?`, params);
+    query(`UPDATE maintenance_requests SET ${sets.join(', ')} WHERE id=?`, params);
 }
-
 async function removeMaintenanceRequest(id) {
-    await query('DELETE FROM request_comments WHERE request_id=?', [id]);
-    await query('DELETE FROM maintenance_requests WHERE id=?', [id]);
+    query('DELETE FROM request_comments WHERE request_id=?', [id]);
+    query('DELETE FROM maintenance_requests WHERE id=?', [id]);
 }
 
 // ── Request Comments ──
-
 async function getRequestComments(requestId) {
-    const rows = await query(
+    return query(
         `SELECT rc.*, r.first_name, r.last_name FROM request_comments rc
          LEFT JOIN residents r ON rc.author_id=r.id
-         WHERE rc.request_id=? ORDER BY rc.created_at ASC`,
-        [requestId],
+         WHERE rc.request_id=? ORDER BY rc.created_at ASC`, [requestId],
     );
-    return rows.map(r => Object.assign({}, r));
 }
-
 async function storeRequestComment(c) {
-    await query(
+    query(
         'INSERT INTO request_comments (id, request_id, author_id, body) VALUES (?, ?, ?, ?)',
         [c.id, c.request_id, c.author_id, c.body],
     );
 }
 
 // ── Maintenance Charges ──
-
 async function getMaintenanceCharges(filters) {
     let sql = `SELECT mc.*, u.unit_number FROM maintenance_charges mc
                JOIN units u ON mc.unit_id=u.id WHERE 1=1`;
@@ -458,86 +342,67 @@ async function getMaintenanceCharges(filters) {
     if (filters && filters.period_month) { sql += ' AND mc.period_month=?'; params.push(filters.period_month); }
     if (filters && filters.status) { sql += ' AND mc.status=?'; params.push(filters.status); }
     sql += ' ORDER BY mc.period_year DESC, mc.period_month DESC, u.unit_number';
-    const rows = await query(sql, params);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql, params);
 }
-
 async function storeMaintenanceCharge(mc) {
-    await query(
+    query(
         `INSERT INTO maintenance_charges (id, unit_id, period_month, period_year, amount, status, due_date)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [mc.id, mc.unit_id, mc.period_month, mc.period_year, mc.amount, mc.status || 'pending', mc.due_date],
     );
 }
-
 async function updateMaintenanceCharge(id, mc) {
-    await query('UPDATE maintenance_charges SET status=?, paid_date=? WHERE id=?', [mc.status, mc.paid_date, id]);
+    query('UPDATE maintenance_charges SET status=?, paid_date=? WHERE id=?', [mc.status, mc.paid_date, id]);
 }
 
 // ── Assessments ──
-
 async function getAssessments() {
-    const rows = await query('SELECT * FROM assessments ORDER BY effective_date DESC');
-    return rows.map(r => Object.assign({}, r));
+    return query('SELECT * FROM assessments ORDER BY effective_date DESC');
 }
-
 async function storeAssessment(a) {
-    await query(
+    query(
         `INSERT INTO assessments (id, title, description, total_amount, per_share_amount, effective_date)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [a.id, a.title, a.description, a.total_amount, a.per_share_amount, a.effective_date],
     );
 }
-
 async function getAssessmentCharges(assessmentId) {
-    const rows = await query(
+    return query(
         `SELECT ac.*, u.unit_number, u.shares FROM assessment_charges ac
          JOIN units u ON ac.unit_id=u.id WHERE ac.assessment_id=?
-         ORDER BY u.unit_number`,
-        [assessmentId],
+         ORDER BY u.unit_number`, [assessmentId],
     );
-    return rows.map(r => Object.assign({}, r));
 }
-
 async function storeAssessmentCharge(ac) {
-    await query(
+    query(
         'INSERT INTO assessment_charges (id, assessment_id, unit_id, amount, status) VALUES (?, ?, ?, ?, ?)',
         [ac.id, ac.assessment_id, ac.unit_id, ac.amount, ac.status || 'pending'],
     );
 }
-
 async function updateAssessmentCharge(id, ac) {
-    await query('UPDATE assessment_charges SET status=?, paid_date=? WHERE id=?', [ac.status, ac.paid_date, id]);
+    query('UPDATE assessment_charges SET status=?, paid_date=? WHERE id=?', [ac.status, ac.paid_date, id]);
 }
 
 // ── Users / Auth ──
-
 async function getUserByEmail(email) {
-    const rows = await query('SELECT * FROM users WHERE email=?', [email]);
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query('SELECT * FROM users WHERE email=?', [email])[0] || null;
 }
-
 async function getUserById(id) {
-    const rows = await query('SELECT * FROM users WHERE id=?', [id]);
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query('SELECT * FROM users WHERE id=?', [id])[0] || null;
 }
-
 async function storeUser(u) {
-    await query(
+    query(
         'INSERT INTO users (id, email, password_hash, resident_id, role) VALUES (?, ?, ?, ?, ?)',
         [u.id, u.email, u.password_hash, u.resident_id, u.role || 'resident'],
     );
 }
-
 async function getUsers() {
-    const rows = await query(
+    return query(
         `SELECT u.id, u.email, u.role, u.resident_id, u.created_at,
                 r.first_name, r.last_name
          FROM users u LEFT JOIN residents r ON u.resident_id=r.id ORDER BY u.email`,
     );
-    return rows.map(r => Object.assign({}, r));
 }
-
 async function updateUser(id, u) {
     const sets = [];
     const params = [];
@@ -547,68 +412,56 @@ async function updateUser(id, u) {
     if (u.resident_id !== undefined) { sets.push('resident_id=?'); params.push(u.resident_id); }
     if (sets.length === 0) return;
     params.push(id);
-    await query(`UPDATE users SET ${sets.join(', ')} WHERE id=?`, params);
+    query(`UPDATE users SET ${sets.join(', ')} WHERE id=?`, params);
 }
-
 async function removeUser(id) {
-    await query('DELETE FROM users WHERE id=?', [id]);
+    query('DELETE FROM users WHERE id=?', [id]);
 }
 
 // ── Staff ──
-
 async function getStaff() {
-    const rows = await query('SELECT * FROM staff WHERE is_active=TRUE ORDER BY name');
-    return rows.map(r => Object.assign({}, r));
+    return query('SELECT * FROM staff WHERE is_active=1 ORDER BY name');
 }
-
 async function storeStaffMember(s) {
-    await query(
+    query(
         `INSERT INTO staff (id, name, role, phone, email, schedule, is_active, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [s.id, s.name, s.role, s.phone, s.email, s.schedule, s.is_active !== false, JSON.stringify(s.details || null)],
+        [s.id, s.name, s.role, s.phone, s.email, s.schedule, s.is_active !== false ? 1 : 0, JSON.stringify(s.details || null)],
     );
 }
-
 async function updateStaffMember(id, s) {
-    await query(
+    query(
         'UPDATE staff SET name=?, role=?, phone=?, email=?, schedule=?, is_active=?, details=? WHERE id=?',
-        [s.name, s.role, s.phone, s.email, s.schedule, s.is_active, JSON.stringify(s.details || null), id],
+        [s.name, s.role, s.phone, s.email, s.schedule, s.is_active ? 1 : 0, JSON.stringify(s.details || null), id],
     );
 }
-
 async function removeStaffMember(id) {
-    await query('DELETE FROM staff WHERE id=?', [id]);
+    query('DELETE FROM staff WHERE id=?', [id]);
 }
 
 // ── Vendors ──
-
 async function getVendors() {
-    const rows = await query('SELECT * FROM vendors ORDER BY trade, company_name');
-    return rows.map(r => Object.assign({}, r));
+    return query('SELECT * FROM vendors ORDER BY trade, company_name');
 }
-
 async function storeVendor(v) {
-    await query(
+    query(
         `INSERT INTO vendors (id, company_name, contact_name, trade, phone, email, contract_expires, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [v.id, v.company_name, v.contact_name, v.trade, v.phone, v.email, v.contract_expires, JSON.stringify(v.details || null)],
     );
 }
-
 async function updateVendor(id, v) {
-    await query(
+    query(
         `UPDATE vendors SET company_name=?, contact_name=?, trade=?, phone=?, email=?,
          contract_expires=?, details=? WHERE id=?`,
         [v.company_name, v.contact_name, v.trade, v.phone, v.email, v.contract_expires, JSON.stringify(v.details || null), id],
     );
 }
-
 async function removeVendor(id) {
-    await query('DELETE FROM vendors WHERE id=?', [id]);
+    query('DELETE FROM vendors WHERE id=?', [id]);
 }
 
 // ── Applications ──
-
 async function getApplications(filters) {
     let sql = `SELECT a.*, u.unit_number FROM applications a
                JOIN units u ON a.unit_id=u.id WHERE 1=1`;
@@ -617,26 +470,20 @@ async function getApplications(filters) {
     if (filters && filters.type) { sql += ' AND a.type=?'; params.push(filters.type); }
     if (filters && filters.unit_id) { sql += ' AND a.unit_id=?'; params.push(filters.unit_id); }
     sql += ' ORDER BY a.submitted_at DESC';
-    const rows = await query(sql, params);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql, params);
 }
-
 async function getApplication(id) {
-    const rows = await query(
-        'SELECT a.*, u.unit_number FROM applications a JOIN units u ON a.unit_id=u.id WHERE a.id=?',
-        [id],
-    );
-    return rows[0] ? Object.assign({}, rows[0]) : null;
+    return query(
+        'SELECT a.*, u.unit_number FROM applications a JOIN units u ON a.unit_id=u.id WHERE a.id=?', [id],
+    )[0] || null;
 }
-
 async function storeApplication(a) {
-    await query(
+    query(
         `INSERT INTO applications (id, unit_id, type, applicant_name, applicant_email, status, notes, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [a.id, a.unit_id, a.type, a.applicant_name, a.applicant_email, a.status || 'submitted', a.notes, JSON.stringify(a.details || null)],
     );
 }
-
 async function updateApplication(id, a) {
     const sets = [];
     const params = [];
@@ -646,11 +493,10 @@ async function updateApplication(id, a) {
     if (a.reviewed_at !== undefined) { sets.push('reviewed_at=?'); params.push(a.reviewed_at); }
     if (sets.length === 0) return;
     params.push(id);
-    await query(`UPDATE applications SET ${sets.join(', ')} WHERE id=?`, params);
+    query(`UPDATE applications SET ${sets.join(', ')} WHERE id=?`, params);
 }
 
 // ── Waitlists ──
-
 async function getWaitlist(type) {
     let sql = `SELECT w.*, r.first_name, r.last_name, u.unit_number
                FROM waitlists w
@@ -659,50 +505,39 @@ async function getWaitlist(type) {
     const params = [];
     if (type) { sql += ' AND w.type=?'; params.push(type); }
     sql += ' ORDER BY w.type, w.position';
-    const rows = await query(sql, params);
-    return rows.map(r => Object.assign({}, r));
+    return query(sql, params);
 }
-
 async function storeWaitlistEntry(w) {
     if (!w.position) {
-        const rows = await query(
-            'SELECT MAX(position) as maxPos FROM waitlists WHERE type=?',
-            [w.type],
-        );
+        const rows = query('SELECT MAX(position) as maxPos FROM waitlists WHERE type=?', [w.type]);
         w.position = (rows[0].maxPos || 0) + 1;
     }
-    await query(
+    query(
         'INSERT INTO waitlists (id, type, resident_id, position) VALUES (?, ?, ?, ?)',
         [w.id, w.type, w.resident_id, w.position],
     );
 }
-
 async function updateWaitlistEntry(id, w) {
-    await query('UPDATE waitlists SET position=?, fulfilled_at=? WHERE id=?', [w.position, w.fulfilled_at, id]);
+    query('UPDATE waitlists SET position=?, fulfilled_at=? WHERE id=?', [w.position, w.fulfilled_at, id]);
 }
-
 async function removeWaitlistEntry(id) {
-    await query('DELETE FROM waitlists WHERE id=?', [id]);
+    query('DELETE FROM waitlists WHERE id=?', [id]);
 }
 
 // ── Compliance ──
-
 async function getComplianceItems() {
-    const rows = await query(
+    return query(
         `SELECT ci.*, v.company_name as vendor_name FROM compliance_items ci
          LEFT JOIN vendors v ON ci.vendor_id=v.id ORDER BY ci.due_date`,
     );
-    return rows.map(r => Object.assign({}, r));
 }
-
 async function storeComplianceItem(ci) {
-    await query(
+    query(
         `INSERT INTO compliance_items (id, law_name, description, due_date, status, vendor_id, cost, notes, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [ci.id, ci.law_name, ci.description, ci.due_date, ci.status || 'upcoming', ci.vendor_id, ci.cost, ci.notes, JSON.stringify(ci.details || null)],
     );
 }
-
 async function updateComplianceItem(id, ci) {
     const sets = [];
     const params = [];
@@ -715,28 +550,23 @@ async function updateComplianceItem(id, ci) {
     if (ci.notes !== undefined) { sets.push('notes=?'); params.push(ci.notes); }
     if (sets.length === 0) return;
     params.push(id);
-    await query(`UPDATE compliance_items SET ${sets.join(', ')} WHERE id=?`, params);
+    query(`UPDATE compliance_items SET ${sets.join(', ')} WHERE id=?`, params);
 }
-
 async function removeComplianceItem(id) {
-    await query('DELETE FROM compliance_items WHERE id=?', [id]);
+    query('DELETE FROM compliance_items WHERE id=?', [id]);
 }
 
 // ── Violations ──
-
 async function getViolations() {
-    const rows = await query('SELECT * FROM violations ORDER BY issued_date DESC');
-    return rows.map(r => Object.assign({}, r));
+    return query('SELECT * FROM violations ORDER BY issued_date DESC');
 }
-
 async function storeViolation(v) {
-    await query(
+    query(
         `INSERT INTO violations (id, source, violation_number, description, issued_date, status, penalty, details)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [v.id, v.source, v.violation_number, v.description, v.issued_date, v.status || 'open', v.penalty, JSON.stringify(v.details || null)],
     );
 }
-
 async function updateViolation(id, v) {
     const sets = [];
     const params = [];
@@ -745,50 +575,31 @@ async function updateViolation(id, v) {
     if (v.penalty !== undefined) { sets.push('penalty=?'); params.push(v.penalty); }
     if (sets.length === 0) return;
     params.push(id);
-    await query(`UPDATE violations SET ${sets.join(', ')} WHERE id=?`, params);
+    query(`UPDATE violations SET ${sets.join(', ')} WHERE id=?`, params);
 }
-
 async function removeViolation(id) {
-    await query('DELETE FROM violations WHERE id=?', [id]);
+    query('DELETE FROM violations WHERE id=?', [id]);
 }
 
 module.exports = {
     init, teardown,
-    // Legacy homes
     getHomes, getHome, storeHome, updateHome, removeHome,
-    // Building
     getBuilding, upsertBuilding,
-    // Units
     getUnits, getUnit, storeUnit, updateUnit, removeUnit,
-    // Residents
     getResidents, getResident, storeResident, updateResident, removeResident,
-    // Board
     getBoardMembers, storeBoardMember, updateBoardMember, removeBoardMember,
-    // Announcements
     getAnnouncements, getAnnouncement, storeAnnouncement, updateAnnouncement, removeAnnouncement,
-    // Documents
     getDocuments, storeDocument, removeDocument,
-    // Maintenance requests
     getMaintenanceRequests, getMaintenanceRequest, storeMaintenanceRequest,
     updateMaintenanceRequest, removeMaintenanceRequest,
-    // Request comments
     getRequestComments, storeRequestComment,
-    // Maintenance charges
     getMaintenanceCharges, storeMaintenanceCharge, updateMaintenanceCharge,
-    // Assessments
     getAssessments, storeAssessment, getAssessmentCharges, storeAssessmentCharge, updateAssessmentCharge,
-    // Users / Auth
     getUserByEmail, getUserById, storeUser, getUsers, updateUser, removeUser,
-    // Staff
     getStaff, storeStaffMember, updateStaffMember, removeStaffMember,
-    // Vendors
     getVendors, storeVendor, updateVendor, removeVendor,
-    // Applications
     getApplications, getApplication, storeApplication, updateApplication,
-    // Waitlists
     getWaitlist, storeWaitlistEntry, updateWaitlistEntry, removeWaitlistEntry,
-    // Compliance
     getComplianceItems, storeComplianceItem, updateComplianceItem, removeComplianceItem,
-    // Violations
     getViolations, storeViolation, updateViolation, removeViolation,
 };
