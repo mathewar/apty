@@ -48,6 +48,7 @@ function runMigrations() {
         sql = sql.replace(/MEDIUMTEXT/gi, 'TEXT');
         sql = sql.replace(/INT UNSIGNED/gi, 'INTEGER');
         sql = sql.replace(/JSON/gi, 'TEXT');
+        sql = sql.replace(/NOW\(\)/g, 'CURRENT_TIMESTAMP');
         const statements = sql
             .split(';')
             .map(s => s.trim())
