@@ -95,33 +95,6 @@ async function teardown() {
     });
 }
 
-// ── Legacy homes CRUD ──
-
-async function getHomes() {
-    const rows = await query('SELECT * FROM homes');
-    return rows.map(item => Object.assign({}, item));
-}
-
-async function getHome(id) {
-    const rows = await query('SELECT * FROM homes WHERE id=?', [id]);
-    return rows.map(item => Object.assign({}, item))[0];
-}
-
-async function storeHome(item) {
-    await query('INSERT INTO homes (id, name) VALUES (?, ?)', [
-        item.id,
-        item.name,
-    ]);
-}
-
-async function updateHome(id, item) {
-    await query('UPDATE homes SET name=? WHERE id=?', [item.name, id]);
-}
-
-async function removeHome(id) {
-    await query('DELETE FROM homes WHERE id = ?', [id]);
-}
-
 // ── Building ──
 
 async function getBuilding() {
@@ -854,8 +827,6 @@ async function removeViolation(id) {
 
 module.exports = {
     init, teardown,
-    // Legacy homes
-    getHomes, getHome, storeHome, updateHome, removeHome,
     // Building
     getBuilding, upsertBuilding,
     // Units

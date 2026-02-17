@@ -1,162 +1,88 @@
 # Apty
 
-## Mission
-
-Empower people to improve their homes and communities
-
-## Vision
-
-A home is more than a house. A community is more than a set of buildings.
-
-Apty provides a platform for people and APIs to plug in, both by providing data and services.  For users, we use this data to power user experiences that improve their lives and their communities. Apty provides a basic set of services necessary to empower a single home, a building, or a set of buildings to be able to share information, when and as needed. 
-
-## Components
-
-## Plugins
-
-Apty supports a **service provider plugin API** that lets external systems push events into the platform. Providers register via the API, receive an API key, and post normalized events. `package.arrived` events automatically create package records.
-
-### Data plugins
-
-### Service plugins
-
-**ButterflyMX** is the first built-in integration. When configured, ButterflyMX pushes package-delivery webhook events to `/api/integrations/butterflymx/webhook`. Apty validates the HMAC-SHA256 signature and creates a package record automatically.
-
-### UI plugins
+Co-op building management platform. Empowers people to manage their homes and communities.
 
 ## Getting Started
 
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) v18 or later
-- (Optional) [Docker](https://www.docker.com/) and Docker Compose for the full MySQL stack
-
-### Local Development (SQLite — quickest)
-
-No database setup required. The app auto-detects when `MYSQL_HOST` is not set and uses a local SQLite database.
+### Local development (SQLite)
 
 ```bash
-# Install dependencies
 npm install
-
-# Seed the database with sample data (24 units at 250 W 82nd St)
-npm run seed
-
-# Start the dev server (with auto-reload)
-npm run dev
-
-# Or start without auto-reload
-npm start
+npm run seed   # seed with sample building data
+npm run dev    # start with auto-reload at http://localhost:3000
 ```
 
-The app will be available at **http://localhost:3000**.
+Default login: `admin@250w82.com` / `admin123`
 
-**Default admin login:** `admin@250w82.com` / `admin123`
-
-### Docker Compose (MySQL)
-
-If you prefer the full MySQL-backed setup:
+### Docker / MySQL
 
 ```bash
 docker compose up -d
-```
-
-This starts both the Node app and a MySQL 5.7 container. The app listens on port 3000.
-
-To seed the Docker database:
-
-```bash
 docker compose exec app node src/persistence/seed.js
 ```
 
-### Running Tests
+## API
 
-```bash
-npm test
+All routes under `/api/`:
+
+| Resource | Base path |
+|---|---|
+| Building | `/api/building` |
+| Units | `/api/units` |
+| Residents | `/api/residents` |
+| Board | `/api/board` |
+| Announcements | `/api/announcements` |
+| Documents | `/api/documents` |
+| Maintenance | `/api/maintenance` |
+| Finances | `/api/finances` |
+| Staff | `/api/staff` |
+| Vendors | `/api/vendors` |
+| Applications | `/api/applications` |
+| Waitlists | `/api/waitlists` |
+| Compliance | `/api/compliance` |
+| Auth | `/api/auth` |
+| Packages | `/api/packages` |
+| Service providers | `/api/providers` |
+| ButterflyMX webhook | `/api/integrations/butterflymx` |
+
+### Packages
+
+`GET /api/packages?unit_id=&status=&source=` — list (filter by unit, status, source)
+`POST /api/packages` — log a package manually
+`PUT /api/packages/:id` — update (e.g. `{ status: 'picked_up', picked_up_at: ... }`)
+`DELETE /api/packages/:id`
+
+Statuses: `arrived` → `notified` → `picked_up`
+
+### Service provider plugin API
+
+External systems register as providers and push normalized events:
+
+```
+POST /api/providers              — register (returns one-time api_key)
+POST /api/providers/events       — push event (X-Provider-Key header)
 ```
 
-## API Endpoints
-
-All API routes are under `/api/`:
-
-| Resource | Endpoint |
-|---|---|
-| Building info | `GET /api/building` |
-| Units | `GET /api/units` |
-| Residents | `GET /api/residents` |
-| Board members | `GET /api/board` |
-| Announcements | `GET /api/announcements` |
-| Documents | `GET /api/documents` |
-| Maintenance requests | `GET /api/maintenance` |
-| Finances | `GET /api/finances` |
-| Staff | `GET /api/staff` |
-| Vendors | `GET /api/vendors` |
-| Applications | `GET /api/applications` |
-| Waitlists | `GET /api/waitlists` |
-| Compliance | `GET /api/compliance` |
-| Auth | `POST /api/auth/login` |
-| Packages | `GET /api/packages` |
-| Service providers | `GET /api/providers` |
-| ButterflyMX webhook | `POST /api/integrations/butterflymx/webhook` |
-
-### Package API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/packages` | List packages (filter by `?unit_id=`, `?status=`, `?source=`) |
-| `GET` | `/api/packages/:id` | Get a single package |
-| `POST` | `/api/packages` | Log a package manually |
-| `PUT` | `/api/packages/:id` | Update a package (e.g. mark picked up) |
-| `DELETE` | `/api/packages/:id` | Delete a package record |
-
-Package statuses: `arrived` → `notified` → `picked_up`
-
-### Service Provider API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/providers` | List registered providers |
-| `POST` | `/api/providers` | Register a provider — returns a one-time `api_key` |
-| `PUT` | `/api/providers/:id` | Update provider config or toggle active |
-| `DELETE` | `/api/providers/:id` | Remove a provider |
-| `POST` | `/api/providers/events` | Ingest a normalized event (requires `X-Provider-Key` header) |
-
-**Event payload for `package.arrived`:**
+`package.arrived` event payload:
 ```json
 {
   "event_type": "package.arrived",
-  "event_id": "<dedup-id>",
-  "data": {
-    "unit_number": "3B",
-    "carrier": "UPS",
-    "tracking_number": "1Z...",
-    "description": "1 package"
-  }
+  "event_id": "dedup-id",
+  "data": { "unit_number": "3B", "carrier": "UPS", "tracking_number": "1Z..." }
 }
 ```
 
-### ButterflyMX Webhook
+### ButterflyMX
 
-`POST /api/integrations/butterflymx/webhook`
+`POST /api/integrations/butterflymx/webhook` — validates HMAC-SHA256 signature (`X-ButterflyMX-Signature`), maps payload to package record, deduplicates by `event_id`. Configure `webhook_secret` in the provider's config JSON.
 
-- Validates `X-ButterflyMX-Signature` HMAC-SHA256 against the `webhook_secret` stored in the provider's config
-- Maps `unit.name` → unit lookup, `carrier`, `tracking_number`, `event_id` (for deduplication)
-- Returns `200 OK` immediately
+## Stack
 
-## Engineering Stack
-
-- **Runtime:** Node.js + Express
-- **Database:** MySQL (production) or SQLite (local dev)
-- **Containerization:** Docker / Docker Compose
-- **Testing:** Jest
-
-## Design Notes
-
-Structure as a web app + database
-
-Diagram : https://viewer.diagrams.net/?highlight=0000ff&edit=_blank&layers=1&nav=1&title=data_arch.dataio#Uhttps%3A%2F%2Fraw.githubusercontent.com%2Fmathewar%2Fapty%2Fmain%2Fdata_arch.dataio
-TODO : Figure out how to embed this directly.
+- Node.js + Express
+- SQLite (dev) / MySQL (prod)
+- React + React-Bootstrap (single-page frontend)
+- Docker Compose
 
 ## Contributions
 
-Very welcome - just getting started here. Need help from anyone who's set up an open source webapp before.
+Very welcome — just getting started here.

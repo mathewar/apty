@@ -1278,6 +1278,15 @@ function CompliancePage() {
 }
 
 // ── Packages ──
+function detectCarrier(t) {
+    t = (t || '').trim().replace(/\s+/g, '');
+    if (/^1Z[A-Z0-9]{16}$/i.test(t)) return 'UPS';
+    if (/^(94|93|92|91|90)\d{18,20}$/.test(t)) return 'USPS';
+    if (/^\d{12}$/.test(t) || /^\d{15}$/.test(t) || /^\d{20}$/.test(t)) return 'FedEx';
+    if (/^TBA\d+/i.test(t)) return 'Amazon';
+    return '';
+}
+
 function PackagesPage() {
     const { Card, Table, Button, Modal, Form, Badge } = ReactBootstrap;
     const [packages, setPackages] = React.useState([]);
@@ -1285,6 +1294,9 @@ function PackagesPage() {
     const [filter, setFilter] = React.useState('all');
     const [showAdd, setShowAdd] = React.useState(false);
     const [form, setForm] = React.useState({});
+    const [scanning, setScanning] = React.useState(false);
+    const [scanError, setScanError] = React.useState('');
+    const scannerRef = React.useRef(null);
 
     const load = () => api.get('/api/packages').then(setPackages).catch(() => {});
     React.useEffect(() => {
@@ -1292,11 +1304,58 @@ function PackagesPage() {
         api.get('/api/units').then(setUnits).catch(() => {});
     }, []);
 
-    const filtered = filter === 'all' ? packages : packages.filter(p => p.status === filter);
+    // Stop scanner when modal closes
+    React.useEffect(() => {
+        if (!showAdd) stopScanner();
+    }, [showAdd]);
+
+    // Start / stop camera when scanning toggles
+    React.useEffect(() => {
+        if (!scanning) { stopScanner(); return; }
+        setScanError('');
+        const timer = setTimeout(() => {
+            if (!window.Html5Qrcode) {
+                setScanError('Scanner library not loaded.');
+                setScanning(false);
+                return;
+            }
+            try {
+                const scanner = new Html5Qrcode('pkg-barcode-scanner');
+                scannerRef.current = scanner;
+                scanner.start(
+                    { facingMode: 'environment' },
+                    { fps: 10, qrbox: { width: 280, height: 110 } },
+                    (decoded) => {
+                        const carrier = detectCarrier(decoded);
+                        setForm(f => ({ ...f, tracking_number: decoded, ...(carrier ? { carrier } : {}) }));
+                        setScanning(false);
+                    },
+                    () => {},
+                ).catch(() => {
+                    setScanError('Could not access camera — check permissions.');
+                    setScanning(false);
+                });
+            } catch (e) {
+                setScanError('Scanner error: ' + e.message);
+                setScanning(false);
+            }
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [scanning]);
+
+    function stopScanner() {
+        if (scannerRef.current) {
+            scannerRef.current.stop().catch(() => {});
+            scannerRef.current = null;
+        }
+        setScanning(false);
+    }
+
+    const closeModal = () => { stopScanner(); setShowAdd(false); setForm({}); setScanError(''); };
 
     const handleAdd = () => {
         api.post('/api/packages', { ...form, status: 'arrived' }).then(() => {
-            setShowAdd(false); setForm({}); load();
+            closeModal(); load();
         }).catch(() => {});
     };
 
@@ -1305,6 +1364,7 @@ function PackagesPage() {
             .then(load).catch(() => {});
     };
 
+    const filtered = filter === 'all' ? packages : packages.filter(p => p.status === filter);
     const statusVariant = { arrived: 'warning', notified: 'info', picked_up: 'success' };
 
     return (
@@ -1363,9 +1423,34 @@ function PackagesPage() {
                 </Table>
             </Card>
 
-            <Modal show={showAdd} onHide={() => setShowAdd(false)}>
+            <Modal show={showAdd} onHide={closeModal}>
                 <Modal.Header closeButton><Modal.Title>Log Package</Modal.Title></Modal.Header>
                 <Modal.Body>
+                    {/* Barcode / QR scanner */}
+                    <div className="mb-3">
+                        {!scanning ? (
+                            <Button variant="outline-primary" block onClick={() => setScanning(true)}>
+                                <i className="fas fa-camera mr-2" />Scan Barcode / QR Code
+                            </Button>
+                        ) : (
+                            <div>
+                                <div id="pkg-barcode-scanner" className="barcode-scanner-view" />
+                                <Button size="sm" variant="outline-secondary" block className="mt-2"
+                                    onClick={() => setScanning(false)}>
+                                    Cancel Scan
+                                </Button>
+                            </div>
+                        )}
+                        {scanError && <div className="text-danger small mt-1">{scanError}</div>}
+                        {form.tracking_number && !scanning && (
+                            <div className="scan-success mt-2">
+                                <i className="fas fa-check-circle text-success mr-1" />
+                                Scanned: <code>{form.tracking_number}</code>
+                                {form.carrier && <span className="badge badge-info ml-2">{form.carrier}</span>}
+                            </div>
+                        )}
+                    </div>
+                    <hr className="mt-0" />
                     <Form.Group>
                         <Form.Label>Unit</Form.Label>
                         <Form.Control as="select" value={form.unit_id || ''}
@@ -1380,7 +1465,7 @@ function PackagesPage() {
                         <Form.Label>Carrier</Form.Label>
                         <Form.Control value={form.carrier || ''}
                             onChange={e => setForm({ ...form, carrier: e.target.value })}
-                            placeholder="UPS, FedEx, USPS…" />
+                            placeholder="UPS, FedEx, USPS, Amazon…" />
                     </Form.Group>
                     <Form.Group>
                         <Form.Label>Tracking Number</Form.Label>
@@ -1395,8 +1480,8 @@ function PackagesPage() {
                     </Form.Group>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button>
-                    <Button onClick={handleAdd}>Save</Button>
+                    <Button variant="secondary" onClick={closeModal}>Cancel</Button>
+                    <Button onClick={handleAdd} disabled={!form.unit_id}>Save</Button>
                 </Modal.Footer>
             </Modal>
         </div>

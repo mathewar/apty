@@ -4,13 +4,7 @@ const db = require('./persistence');
 const logger = require('./middleware/logger');
 const errorHandler = require('./middleware/errorHandler');
 
-// Legacy route handlers
-const getHomes = require('./routes/getHomes');
-const addHome = require('./routes/addhome');
-const updateHome = require('./routes/updateHome');
-const deleteHome = require('./routes/deleteHome');
-
-// New API routers
+// API routers
 const buildingRouter = require('./routes/building');
 const unitsRouter = require('./routes/units');
 const residentsRouter = require('./routes/residents');
@@ -33,13 +27,7 @@ app.use(logger);
 app.use(require('body-parser').json());
 app.use(express.static(__dirname + '/static'));
 
-// Legacy routes (backward compat)
-app.get('/items', getHomes);
-app.post('/items', addHome);
-app.put('/items/:id', updateHome);
-app.delete('/items/:id', deleteHome);
-
-// New API routes
+// API routes
 app.use('/api/building', buildingRouter);
 app.use('/api/units', unitsRouter);
 app.use('/api/residents', residentsRouter);

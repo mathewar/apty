@@ -75,23 +75,6 @@ async function teardown() {
     if (db) db.close();
 }
 
-// ── Legacy homes CRUD ──
-async function getHomes() {
-    return query('SELECT * FROM homes');
-}
-async function getHome(id) {
-    return query('SELECT * FROM homes WHERE id=?', [id])[0];
-}
-async function storeHome(item) {
-    query('INSERT INTO homes (id, name) VALUES (?, ?)', [item.id, item.name]);
-}
-async function updateHome(id, item) {
-    query('UPDATE homes SET name=? WHERE id=?', [item.name, id]);
-}
-async function removeHome(id) {
-    query('DELETE FROM homes WHERE id = ?', [id]);
-}
-
 // ── Building ──
 async function getBuilding() {
     return query('SELECT * FROM building LIMIT 1')[0] || null;
@@ -666,7 +649,6 @@ async function removeViolation(id) {
 
 module.exports = {
     init, teardown,
-    getHomes, getHome, storeHome, updateHome, removeHome,
     getBuilding, upsertBuilding,
     getUnits, getUnit, storeUnit, updateUnit, removeUnit,
     getResidents, getResident, storeResident, updateResident, removeResident,
