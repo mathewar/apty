@@ -25,6 +25,9 @@ const vendorsRouter = require('./routes/vendors');
 const applicationsRouter = require('./routes/applications');
 const waitlistsRouter = require('./routes/waitlists');
 const complianceRouter = require('./routes/compliance');
+const packagesRouter = require('./routes/packages');
+const providersRouter = require('./routes/providers');
+const butterflymxRouter = require('./routes/integrations/butterflymx');
 
 app.use(logger);
 app.use(require('body-parser').json());
@@ -51,6 +54,9 @@ app.use('/api/vendors', vendorsRouter);
 app.use('/api/applications', applicationsRouter);
 app.use('/api/waitlists', waitlistsRouter);
 app.use('/api/compliance', complianceRouter);
+app.use('/api/packages', packagesRouter);
+app.use('/api/providers', providersRouter);
+app.use('/api/integrations/butterflymx', butterflymxRouter);
 
 app.use(errorHandler);
 

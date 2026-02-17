@@ -33,6 +33,7 @@ function Sidebar({ page, setPage }) {
         { key: 'staff', icon: 'fa-hard-hat', label: 'Staff & Vendors' },
         { key: 'applications', icon: 'fa-file-alt', label: 'Applications' },
         { key: 'compliance', icon: 'fa-clipboard-check', label: 'Compliance' },
+        { key: 'packages', icon: 'fa-box', label: 'Packages' },
     ];
     return (
         <div className="sidebar">
@@ -59,12 +60,14 @@ function DashboardPage() {
     const [units, setUnits] = React.useState([]);
     const [announcements, setAnnouncements] = React.useState([]);
     const [requests, setRequests] = React.useState([]);
+    const [packages, setPackages] = React.useState([]);
 
     React.useEffect(() => {
         api.get('/api/building').then(setBuilding).catch(() => {});
         api.get('/api/units').then(setUnits);
         api.get('/api/announcements').then(setAnnouncements);
         api.get('/api/maintenance').then(setRequests);
+        api.get('/api/packages').then(setPackages).catch(() => {});
     }, []);
 
     const totalShares = units.reduce((s, u) => s + (u.shares || 0), 0);
@@ -73,6 +76,9 @@ function DashboardPage() {
     );
     const openReqs = requests.filter(
         r => r.status === 'open' || r.status === 'in_progress',
+    ).length;
+    const uncollectedPkgs = packages.filter(
+        p => p.status === 'arrived' || p.status === 'notified',
     ).length;
 
     return (
@@ -125,6 +131,16 @@ function DashboardPage() {
                                 {openReqs}
                             </div>
                             <div className="stat-label">Open Requests</div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={3}>
+                    <Card className="stat-card">
+                        <Card.Body>
+                            <div className="stat-number text-danger">
+                                {uncollectedPkgs}
+                            </div>
+                            <div className="stat-label">Uncollected Packages</div>
                         </Card.Body>
                     </Card>
                 </Col>
@@ -1261,6 +1277,132 @@ function CompliancePage() {
     );
 }
 
+// ── Packages ──
+function PackagesPage() {
+    const { Card, Table, Button, Modal, Form, Badge } = ReactBootstrap;
+    const [packages, setPackages] = React.useState([]);
+    const [units, setUnits] = React.useState([]);
+    const [filter, setFilter] = React.useState('all');
+    const [showAdd, setShowAdd] = React.useState(false);
+    const [form, setForm] = React.useState({});
+
+    const load = () => api.get('/api/packages').then(setPackages).catch(() => {});
+    React.useEffect(() => {
+        load();
+        api.get('/api/units').then(setUnits).catch(() => {});
+    }, []);
+
+    const filtered = filter === 'all' ? packages : packages.filter(p => p.status === filter);
+
+    const handleAdd = () => {
+        api.post('/api/packages', { ...form, status: 'arrived' }).then(() => {
+            setShowAdd(false); setForm({}); load();
+        }).catch(() => {});
+    };
+
+    const markPickedUp = (id) => {
+        api.put(`/api/packages/${id}`, { status: 'picked_up', picked_up_at: new Date().toISOString() })
+            .then(load).catch(() => {});
+    };
+
+    const statusVariant = { arrived: 'warning', notified: 'info', picked_up: 'success' };
+
+    return (
+        <div>
+            <div className="d-flex justify-content-between mb-3">
+                <h4>Packages</h4>
+                <Button size="sm" onClick={() => setShowAdd(true)}>
+                    <i className="fas fa-plus mr-1" /> Log Package
+                </Button>
+            </div>
+            <div className="mb-3">
+                {['all', 'arrived', 'notified', 'picked_up'].map(f => (
+                    <Button key={f} size="sm" variant={filter === f ? 'primary' : 'outline-secondary'}
+                        className="mr-1" onClick={() => setFilter(f)}>
+                        {f === 'all' ? 'All' : f.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </Button>
+                ))}
+            </div>
+            <Card className="table-card">
+                <Table hover responsive>
+                    <thead>
+                        <tr>
+                            <th>Unit</th><th>Carrier</th><th>Tracking #</th>
+                            <th>Description</th><th>Status</th>
+                            <th>Received</th><th>Picked Up</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filtered.map(p => (
+                            <tr key={p.id}>
+                                <td><strong>{p.unit_number || '—'}</strong></td>
+                                <td>{p.carrier || '—'}</td>
+                                <td><small>{p.tracking_number || '—'}</small></td>
+                                <td>{p.description || '—'}</td>
+                                <td>
+                                    <Badge variant={statusVariant[p.status] || 'secondary'}>
+                                        {(p.status || '').replace('_', ' ')}
+                                    </Badge>
+                                </td>
+                                <td><small>{p.received_at ? new Date(p.received_at).toLocaleDateString() : '—'}</small></td>
+                                <td><small>{p.picked_up_at ? new Date(p.picked_up_at).toLocaleDateString() : '—'}</small></td>
+                                <td>
+                                    {p.status !== 'picked_up' && (
+                                        <Button size="sm" variant="outline-success"
+                                            onClick={() => markPickedUp(p.id)}>
+                                            Mark Picked Up
+                                        </Button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                        {filtered.length === 0 && (
+                            <tr><td colSpan="8" className="text-center text-muted">No packages</td></tr>
+                        )}
+                    </tbody>
+                </Table>
+            </Card>
+
+            <Modal show={showAdd} onHide={() => setShowAdd(false)}>
+                <Modal.Header closeButton><Modal.Title>Log Package</Modal.Title></Modal.Header>
+                <Modal.Body>
+                    <Form.Group>
+                        <Form.Label>Unit</Form.Label>
+                        <Form.Control as="select" value={form.unit_id || ''}
+                            onChange={e => setForm({ ...form, unit_id: e.target.value })}>
+                            <option value="">— Select Unit —</option>
+                            {units.map(u => (
+                                <option key={u.id} value={u.id}>{u.unit_number}</option>
+                            ))}
+                        </Form.Control>
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Carrier</Form.Label>
+                        <Form.Control value={form.carrier || ''}
+                            onChange={e => setForm({ ...form, carrier: e.target.value })}
+                            placeholder="UPS, FedEx, USPS…" />
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Tracking Number</Form.Label>
+                        <Form.Control value={form.tracking_number || ''}
+                            onChange={e => setForm({ ...form, tracking_number: e.target.value })} />
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Description</Form.Label>
+                        <Form.Control value={form.description || ''}
+                            onChange={e => setForm({ ...form, description: e.target.value })}
+                            placeholder="e.g. 1 large box" />
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button>
+                    <Button onClick={handleAdd}>Save</Button>
+                </Modal.Footer>
+            </Modal>
+        </div>
+    );
+}
+
 // ── Main App ──
 function App() {
     const { Navbar, Container, Row, Col } = ReactBootstrap;
@@ -1277,6 +1419,7 @@ function App() {
         staff: StaffPage,
         applications: ApplicationsPage,
         compliance: CompliancePage,
+        packages: PackagesPage,
     };
 
     const PageComponent = pages[page] || DashboardPage;

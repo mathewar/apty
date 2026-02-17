@@ -722,6 +722,106 @@ async function removeComplianceItem(id) {
     await query('DELETE FROM compliance_items WHERE id=?', [id]);
 }
 
+// ── Packages ──
+
+async function getPackages(filters) {
+    let sql = `SELECT p.*, u.unit_number FROM packages p
+               LEFT JOIN units u ON p.unit_id=u.id WHERE 1=1`;
+    const params = [];
+    if (filters && filters.unit_id) { sql += ' AND p.unit_id=?'; params.push(filters.unit_id); }
+    if (filters && filters.status) { sql += ' AND p.status=?'; params.push(filters.status); }
+    if (filters && filters.source) { sql += ' AND p.source=?'; params.push(filters.source); }
+    sql += ' ORDER BY p.received_at DESC';
+    const rows = await query(sql, params);
+    return rows.map(r => Object.assign({}, r));
+}
+
+async function getPackage(id) {
+    const rows = await query(
+        `SELECT p.*, u.unit_number FROM packages p
+         LEFT JOIN units u ON p.unit_id=u.id WHERE p.id=?`, [id],
+    );
+    return rows[0] ? Object.assign({}, rows[0]) : null;
+}
+
+async function storePackage(pkg) {
+    await query(
+        `INSERT INTO packages (id, unit_id, resident_id, carrier, tracking_number,
+         description, status, received_by, source, provider_event_id, details)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pkg.id, pkg.unit_id, pkg.resident_id, pkg.carrier, pkg.tracking_number,
+         pkg.description, pkg.status || 'arrived', pkg.received_by,
+         pkg.source || 'manual', pkg.provider_event_id,
+         pkg.details ? JSON.stringify(pkg.details) : null],
+    );
+}
+
+async function updatePackage(id, pkg) {
+    const sets = [];
+    const params = [];
+    if (pkg.status !== undefined) { sets.push('status=?'); params.push(pkg.status); }
+    if (pkg.carrier !== undefined) { sets.push('carrier=?'); params.push(pkg.carrier); }
+    if (pkg.tracking_number !== undefined) { sets.push('tracking_number=?'); params.push(pkg.tracking_number); }
+    if (pkg.description !== undefined) { sets.push('description=?'); params.push(pkg.description); }
+    if (pkg.picked_up_at !== undefined) { sets.push('picked_up_at=?'); params.push(pkg.picked_up_at); }
+    if (pkg.resident_id !== undefined) { sets.push('resident_id=?'); params.push(pkg.resident_id); }
+    if (sets.length === 0) return;
+    params.push(id);
+    await query(`UPDATE packages SET ${sets.join(', ')} WHERE id=?`, params);
+}
+
+async function removePackage(id) {
+    await query('DELETE FROM packages WHERE id=?', [id]);
+}
+
+async function getPackageByProviderEventId(eventId) {
+    const rows = await query('SELECT * FROM packages WHERE provider_event_id=?', [eventId]);
+    return rows[0] ? Object.assign({}, rows[0]) : null;
+}
+
+// ── Service Providers ──
+
+async function getServiceProviders() {
+    const rows = await query('SELECT * FROM service_providers ORDER BY name');
+    return rows.map(r => Object.assign({}, r));
+}
+
+async function getServiceProvider(id) {
+    const rows = await query('SELECT * FROM service_providers WHERE id=?', [id]);
+    return rows[0] ? Object.assign({}, rows[0]) : null;
+}
+
+async function getServiceProviderByApiKeyHash(hash) {
+    const rows = await query('SELECT * FROM service_providers WHERE api_key_hash=? AND is_active=1', [hash]);
+    return rows[0] ? Object.assign({}, rows[0]) : null;
+}
+
+async function storeServiceProvider(provider) {
+    await query(
+        `INSERT INTO service_providers (id, name, provider_type, api_key_hash, is_active, config)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [provider.id, provider.name, provider.provider_type, provider.api_key_hash,
+         provider.is_active !== false,
+         provider.config ? JSON.stringify(provider.config) : null],
+    );
+}
+
+async function updateServiceProvider(id, provider) {
+    const sets = [];
+    const params = [];
+    if (provider.name !== undefined) { sets.push('name=?'); params.push(provider.name); }
+    if (provider.provider_type !== undefined) { sets.push('provider_type=?'); params.push(provider.provider_type); }
+    if (provider.is_active !== undefined) { sets.push('is_active=?'); params.push(provider.is_active); }
+    if (provider.config !== undefined) { sets.push('config=?'); params.push(JSON.stringify(provider.config)); }
+    if (sets.length === 0) return;
+    params.push(id);
+    await query(`UPDATE service_providers SET ${sets.join(', ')} WHERE id=?`, params);
+}
+
+async function removeServiceProvider(id) {
+    await query('DELETE FROM service_providers WHERE id=?', [id]);
+}
+
 // ── Violations ──
 
 async function getViolations() {
@@ -791,4 +891,9 @@ module.exports = {
     getComplianceItems, storeComplianceItem, updateComplianceItem, removeComplianceItem,
     // Violations
     getViolations, storeViolation, updateViolation, removeViolation,
+    // Packages
+    getPackages, getPackage, storePackage, updatePackage, removePackage, getPackageByProviderEventId,
+    // Service Providers
+    getServiceProviders, getServiceProvider, getServiceProviderByApiKeyHash,
+    storeServiceProvider, updateServiceProvider, removeServiceProvider,
 };

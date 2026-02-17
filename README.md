@@ -14,9 +14,13 @@ Apty provides a platform for people and APIs to plug in, both by providing data 
 
 ## Plugins
 
+Apty supports a **service provider plugin API** that lets external systems push events into the platform. Providers register via the API, receive an API key, and post normalized events. `package.arrived` events automatically create package records.
+
 ### Data plugins
 
 ### Service plugins
+
+**ButterflyMX** is the first built-in integration. When configured, ButterflyMX pushes package-delivery webhook events to `/api/integrations/butterflymx/webhook`. Apty validates the HMAC-SHA256 signature and creates a package record automatically.
 
 ### UI plugins
 
@@ -91,6 +95,53 @@ All API routes are under `/api/`:
 | Waitlists | `GET /api/waitlists` |
 | Compliance | `GET /api/compliance` |
 | Auth | `POST /api/auth/login` |
+| Packages | `GET /api/packages` |
+| Service providers | `GET /api/providers` |
+| ButterflyMX webhook | `POST /api/integrations/butterflymx/webhook` |
+
+### Package API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/packages` | List packages (filter by `?unit_id=`, `?status=`, `?source=`) |
+| `GET` | `/api/packages/:id` | Get a single package |
+| `POST` | `/api/packages` | Log a package manually |
+| `PUT` | `/api/packages/:id` | Update a package (e.g. mark picked up) |
+| `DELETE` | `/api/packages/:id` | Delete a package record |
+
+Package statuses: `arrived` → `notified` → `picked_up`
+
+### Service Provider API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/providers` | List registered providers |
+| `POST` | `/api/providers` | Register a provider — returns a one-time `api_key` |
+| `PUT` | `/api/providers/:id` | Update provider config or toggle active |
+| `DELETE` | `/api/providers/:id` | Remove a provider |
+| `POST` | `/api/providers/events` | Ingest a normalized event (requires `X-Provider-Key` header) |
+
+**Event payload for `package.arrived`:**
+```json
+{
+  "event_type": "package.arrived",
+  "event_id": "<dedup-id>",
+  "data": {
+    "unit_number": "3B",
+    "carrier": "UPS",
+    "tracking_number": "1Z...",
+    "description": "1 package"
+  }
+}
+```
+
+### ButterflyMX Webhook
+
+`POST /api/integrations/butterflymx/webhook`
+
+- Validates `X-ButterflyMX-Signature` HMAC-SHA256 against the `webhook_secret` stored in the provider's config
+- Maps `unit.name` → unit lookup, `carrier`, `tracking_number`, `event_id` (for deduplication)
+- Returns `200 OK` immediately
 
 ## Engineering Stack
 

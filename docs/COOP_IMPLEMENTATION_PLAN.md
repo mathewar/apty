@@ -467,6 +467,74 @@ CREATE TABLE violations (
 
 ---
 
+## Phase 10 — Package Delivery + Service Provider API (Weeks 21-22)
+
+Track packages delivered to the building and open the platform to external vendor integrations.
+
+### 10.1 Database schema
+
+```sql
+-- 015_create_packages.sql
+CREATE TABLE packages (
+  id VARCHAR(36) PRIMARY KEY,
+  unit_id VARCHAR(36) REFERENCES units(id),
+  resident_id VARCHAR(36) REFERENCES residents(id),
+  carrier VARCHAR(100),
+  tracking_number VARCHAR(200),
+  description TEXT,
+  status VARCHAR(50) DEFAULT 'arrived',   -- arrived | notified | picked_up
+  received_at DATETIME DEFAULT NOW(),
+  picked_up_at DATETIME,
+  received_by VARCHAR(36),
+  source VARCHAR(100) DEFAULT 'manual',   -- manual | butterflymx | provider:<id>
+  provider_event_id VARCHAR(200),         -- deduplication key from external provider
+  details TEXT
+);
+
+-- 016_create_service_providers.sql
+CREATE TABLE service_providers (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  provider_type VARCHAR(100),             -- intercom | access_control | delivery
+  api_key_hash VARCHAR(200),              -- SHA-256 hash; raw key returned once at registration
+  is_active BOOLEAN DEFAULT 1,
+  config TEXT,                            -- JSON blob (e.g. ButterflyMX webhook_secret)
+  created_at DATETIME DEFAULT NOW()
+);
+```
+
+### 10.2 API endpoints
+
+**Packages** (`/api/packages`):
+- `GET /api/packages` — filter by `?unit_id=`, `?status=`, `?source=`
+- `GET /api/packages/:id`
+- `POST /api/packages` — staff manually logs a package
+- `PUT /api/packages/:id` — update status (e.g. mark `picked_up`)
+- `DELETE /api/packages/:id`
+
+**Service providers** (`/api/providers`):
+- `GET /api/providers` — list providers (api_key_hash never returned)
+- `POST /api/providers` — register a provider; returns one-time plain `api_key`
+- `PUT /api/providers/:id` — update config / toggle active
+- `DELETE /api/providers/:id`
+- `POST /api/providers/events` — generic event ingestion (requires `X-Provider-Key`); `package.arrived` creates a package record with deduplication
+
+**ButterflyMX webhook** (`/api/integrations/butterflymx`):
+- `POST /api/integrations/butterflymx/webhook` — validates HMAC-SHA256 signature, maps payload to Apty fields, deduplicates by `event_id`
+
+### 10.3 Frontend
+- **Packages page** — table with unit, carrier, tracking #, status badge, received/picked-up dates; filter buttons (All / Arrived / Notified / Picked Up); "Log Package" modal; per-row "Mark Picked Up" button
+- **Dashboard** — new stat card showing count of uncollected packages (status `arrived` or `notified`)
+
+### 10.4 Security notes
+- API keys stored as SHA-256 hashes only; raw key shown once at registration
+- ButterflyMX signature verification uses `crypto.timingSafeEqual` to prevent timing attacks
+- Provider events deduplicate by `provider_event_id` before inserting package records
+
+**Deployable result:** Staff log incoming packages and track pickup status. ButterflyMX (or any registered provider) can push package-arrival events automatically. Dashboard shows how many packages are waiting to be collected.
+
+---
+
 ## Deployment Architecture (Single Building)
 
 The entire system runs on a single server with Docker Compose. This is intentionally simple — a co-op board should be able to run this on a $10/month VPS.
@@ -525,6 +593,10 @@ src/
 │   ├── finances.js           # /api/finances
 │   ├── applications.js       # /api/applications
 │   ├── compliance.js         # /api/compliance
+│   ├── packages.js           # /api/packages (Phase 10)
+│   ├── providers.js          # /api/providers (Phase 10)
+│   ├── integrations/
+│   │   └── butterflymx.js    # /api/integrations/butterflymx (Phase 10)
 │   └── auth.js               # /api/auth (Phase 6)
 ├── static/
 │   ├── index.html
@@ -553,7 +625,8 @@ src/
 | 7 | Find staff/vendor contacts | 2 weeks |
 | 8 | Track purchase/sublet applications, join waitlists | 2 weeks |
 | 9 | Compliance calendar, violation tracking | 2 weeks |
+| 10 | Package delivery tracking + service provider plugin API (ButterflyMX) | 2 weeks |
 
-**Total: ~20 weeks to a fully featured co-op management platform.**
+**Total: ~22 weeks to a fully featured co-op management platform.**
 
 Phases 0-4 alone (8 weeks) give you a usable building dashboard with unit management, a resident directory, announcements, and maintenance requests — enough for a co-op board to start getting value immediately.
