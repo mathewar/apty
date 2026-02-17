@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const { requirePermission } = require('../middleware/auth');
 
 function generateApiKey() {
     return crypto.randomBytes(32).toString('hex');
@@ -14,7 +15,7 @@ function hashApiKey(key) {
 
 // ── Provider management ──
 
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('providers:read'), async (req, res, next) => {
     try {
         const providers = await db.getServiceProviders();
         // Never return api_key_hash to clients
@@ -25,7 +26,7 @@ router.get('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requirePermission('providers:write'), async (req, res, next) => {
     try {
         const apiKey = generateApiKey();
         const provider = {
@@ -42,7 +43,7 @@ router.post('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requirePermission('providers:write'), async (req, res, next) => {
     try {
         await db.updateServiceProvider(req.params.id, req.body);
         const provider = await db.getServiceProvider(req.params.id);
@@ -52,7 +53,7 @@ router.put('/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requirePermission('providers:write'), async (req, res, next) => {
     try {
         await db.removeServiceProvider(req.params.id);
         res.sendStatus(200);

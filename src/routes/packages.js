@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
+const { requirePermission } = require('../middleware/auth');
 
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('packages:read'), async (req, res, next) => {
     try {
         const packages = await db.getPackages({
             unit_id: req.query.unit_id,
@@ -14,7 +15,7 @@ router.get('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requirePermission('packages:read'), async (req, res, next) => {
     try {
         const pkg = await db.getPackage(req.params.id);
         if (!pkg) return res.status(404).json({ error: 'Package not found' });
@@ -22,7 +23,7 @@ router.get('/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requirePermission('packages:write'), async (req, res, next) => {
     try {
         const pkg = { id: uuidv4(), ...req.body };
         await db.storePackage(pkg);
@@ -30,7 +31,7 @@ router.post('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requirePermission('packages:write'), async (req, res, next) => {
     try {
         await db.updatePackage(req.params.id, req.body);
         const pkg = await db.getPackage(req.params.id);
@@ -38,7 +39,7 @@ router.put('/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requirePermission('packages:write'), async (req, res, next) => {
     try {
         await db.removePackage(req.params.id);
         res.sendStatus(200);

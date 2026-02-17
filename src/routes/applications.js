@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
+const { requirePermission } = require('../middleware/auth');
 
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('applications:read'), async (req, res, next) => {
     try {
         const applications = await db.getApplications({
             status: req.query.status,
@@ -14,7 +15,7 @@ router.get('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requirePermission('applications:read'), async (req, res, next) => {
     try {
         const application = await db.getApplication(req.params.id);
         if (!application) return res.status(404).json({ error: 'Application not found' });
@@ -22,7 +23,7 @@ router.get('/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requirePermission('applications:write'), async (req, res, next) => {
     try {
         const application = { id: uuidv4(), ...req.body };
         await db.storeApplication(application);
@@ -30,11 +31,10 @@ router.post('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requirePermission('applications:write'), async (req, res, next) => {
     try {
         await db.updateApplication(req.params.id, req.body);
-        const application = await db.getApplication(req.params.id);
-        res.json(application);
+        res.json(await db.getApplication(req.params.id));
     } catch (err) { next(err); }
 });
 

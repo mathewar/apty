@@ -1,8 +1,10 @@
 const express = require('express');
+const session = require('express-session');
 const app = express();
 const db = require('./persistence');
 const logger = require('./middleware/logger');
 const errorHandler = require('./middleware/errorHandler');
+const { attachPermissions } = require('./middleware/auth');
 
 // API routers
 const buildingRouter = require('./routes/building');
@@ -25,6 +27,13 @@ const butterflymxRouter = require('./routes/integrations/butterflymx');
 
 app.use(logger);
 app.use(require('body-parser').json());
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'apty-dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }, // 1 day
+}));
+app.use(attachPermissions);
 app.use(express.static(__dirname + '/static'));
 
 // API routes

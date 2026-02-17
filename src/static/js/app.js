@@ -1,4 +1,5 @@
 // ── API helper ──
+// Rejects with the Response on non-ok; callers that care about 401 can catch and handle.
 const api = {
     get: (url) => fetch(url).then(r => r.ok ? r.json() : Promise.reject(r)),
     post: (url, body) => fetch(url, {
@@ -14,27 +15,78 @@ const api = {
     del: (url) => fetch(url, { method: 'DELETE' }),
 };
 
+// ── Login page ──
+function LoginPage({ onLogin }) {
+    const { Card, Form, Button, Alert } = ReactBootstrap;
+    const [email, setEmail] = React.useState('');
+    const [password, setPassword] = React.useState('');
+    const [error, setError] = React.useState('');
+    const [loading, setLoading] = React.useState(false);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        setError(''); setLoading(true);
+        api.post('/api/auth/login', { email, password })
+            .then(user => { setLoading(false); onLogin(user); })
+            .catch(() => { setLoading(false); setError('Invalid email or password.'); });
+    };
+
+    return (
+        <div className="login-page">
+            <Card className="login-card">
+                <Card.Body>
+                    <div className="text-center mb-4">
+                        <i className="fas fa-home fa-2x text-primary" />
+                        <h4 className="mt-2 mb-0">Apty</h4>
+                        <small className="text-muted">Co-op Building Management</small>
+                    </div>
+                    {error && <Alert variant="danger">{error}</Alert>}
+                    <Form onSubmit={handleSubmit}>
+                        <Form.Group>
+                            <Form.Label>Email</Form.Label>
+                            <Form.Control type="email" value={email} autoFocus
+                                onChange={e => setEmail(e.target.value)} required />
+                        </Form.Group>
+                        <Form.Group>
+                            <Form.Label>Password</Form.Label>
+                            <Form.Control type="password" value={password}
+                                onChange={e => setPassword(e.target.value)} required />
+                        </Form.Group>
+                        <Button type="submit" block disabled={loading} className="mt-2">
+                            {loading ? 'Signing in…' : 'Sign In'}
+                        </Button>
+                    </Form>
+                </Card.Body>
+            </Card>
+        </div>
+    );
+}
+
 function StatusBadge({ status }) {
     const label = (status || '').replace(/_/g, ' ');
     return <span className={`badge badge-${status}`}>{label}</span>;
 }
 
 // ── Sidebar ──
-function Sidebar({ page, setPage }) {
+function Sidebar({ page, setPage, user }) {
     const { Nav } = ReactBootstrap;
+    const perms = (user && user.permissions) || [];
+    const can = (p) => perms.includes(p);
+
     const items = [
-        { key: 'dashboard', icon: 'fa-tachometer-alt', label: 'Dashboard' },
-        { key: 'units', icon: 'fa-building', label: 'Units' },
-        { key: 'residents', icon: 'fa-users', label: 'Residents' },
-        { key: 'board', icon: 'fa-user-tie', label: 'Board' },
-        { key: 'announcements', icon: 'fa-bullhorn', label: 'Announcements' },
-        { key: 'maintenance', icon: 'fa-wrench', label: 'Maintenance' },
-        { key: 'finances', icon: 'fa-dollar-sign', label: 'Finances' },
-        { key: 'staff', icon: 'fa-hard-hat', label: 'Staff & Vendors' },
-        { key: 'applications', icon: 'fa-file-alt', label: 'Applications' },
-        { key: 'compliance', icon: 'fa-clipboard-check', label: 'Compliance' },
-        { key: 'packages', icon: 'fa-box', label: 'Packages' },
-    ];
+        { key: 'dashboard',     icon: 'fa-tachometer-alt',  label: 'Dashboard',       show: true },
+        { key: 'units',         icon: 'fa-building',        label: 'Units',           show: can('units:read') },
+        { key: 'residents',     icon: 'fa-users',           label: 'Residents',       show: can('residents:read') },
+        { key: 'board',         icon: 'fa-user-tie',        label: 'Board',           show: can('board:read') },
+        { key: 'announcements', icon: 'fa-bullhorn',        label: 'Announcements',   show: can('announcements:read') },
+        { key: 'maintenance',   icon: 'fa-wrench',          label: 'Maintenance',     show: can('maintenance:read') },
+        { key: 'packages',      icon: 'fa-box',             label: 'Packages',        show: can('packages:read') },
+        { key: 'finances',      icon: 'fa-dollar-sign',     label: 'Finances',        show: can('finances:read') },
+        { key: 'staff',         icon: 'fa-hard-hat',        label: 'Staff & Vendors', show: can('staff:read') },
+        { key: 'applications',  icon: 'fa-file-alt',        label: 'Applications',    show: can('applications:read') },
+        { key: 'compliance',    icon: 'fa-clipboard-check', label: 'Compliance',      show: can('compliance:read') },
+    ].filter(i => i.show);
+
     return (
         <div className="sidebar">
             <div className="sidebar-heading">Navigation</div>
@@ -49,6 +101,15 @@ function Sidebar({ page, setPage }) {
                     </Nav.Link>
                 ))}
             </Nav>
+            {user && (
+                <div className="sidebar-footer">
+                    <div className="sidebar-user">
+                        <i className="fas fa-user-circle mr-1" />
+                        <small>{user.email}</small>
+                        <span className={`role-badge role-${user.role}`}>{user.role}</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -1490,21 +1551,40 @@ function PackagesPage() {
 
 // ── Main App ──
 function App() {
-    const { Navbar, Container, Row, Col } = ReactBootstrap;
+    const { Navbar, Container, Row, Col, Button } = ReactBootstrap;
+    const [user, setUser] = React.useState(undefined); // undefined = loading, null = logged out
     const [page, setPage] = React.useState('dashboard');
 
+    // Check for existing session on load
+    React.useEffect(() => {
+        api.get('/api/auth/me').then(setUser).catch(() => setUser(null));
+    }, []);
+
+    const handleLogin = (u) => setUser(u);
+    const handleLogout = () => {
+        api.post('/api/auth/logout').catch(() => {}).then(() => setUser(null));
+    };
+
+    if (user === undefined) return (
+        <div className="login-page">
+            <div className="text-center text-muted mt-5">Loading…</div>
+        </div>
+    );
+
+    if (!user) return <LoginPage onLogin={handleLogin} />;
+
     const pages = {
-        dashboard: DashboardPage,
-        units: UnitsPage,
-        residents: ResidentsPage,
-        board: BoardPage,
+        dashboard:     DashboardPage,
+        units:         UnitsPage,
+        residents:     ResidentsPage,
+        board:         BoardPage,
         announcements: AnnouncementsPage,
-        maintenance: MaintenancePage,
-        finances: FinancesPage,
-        staff: StaffPage,
-        applications: ApplicationsPage,
-        compliance: CompliancePage,
-        packages: PackagesPage,
+        maintenance:   MaintenancePage,
+        finances:      FinancesPage,
+        staff:         StaffPage,
+        applications:  ApplicationsPage,
+        compliance:    CompliancePage,
+        packages:      PackagesPage,
     };
 
     const PageComponent = pages[page] || DashboardPage;
@@ -1515,17 +1595,21 @@ function App() {
                 <Navbar.Brand href="#" onClick={() => setPage('dashboard')}>
                     <i className="fas fa-home mr-2" />Apty
                 </Navbar.Brand>
-                <Navbar.Text className="ml-auto text-light">
-                    Co-op Building Management
+                <Navbar.Text className="ml-auto mr-3 text-light small">
+                    {user.email}
+                    <span className={`role-badge role-${user.role} ml-2`}>{user.role}</span>
                 </Navbar.Text>
+                <Button size="sm" variant="outline-light" onClick={handleLogout}>
+                    Sign Out
+                </Button>
             </Navbar>
             <Container fluid className="p-0">
                 <Row noGutters>
                     <Col md={2}>
-                        <Sidebar page={page} setPage={setPage} />
+                        <Sidebar page={page} setPage={setPage} user={user} />
                     </Col>
                     <Col md={10} className="main-content">
-                        <PageComponent />
+                        <PageComponent user={user} />
                     </Col>
                 </Row>
             </Container>

@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
+const { requirePermission } = require('../middleware/auth');
 
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('maintenance:read'), async (req, res, next) => {
     try {
         const requests = await db.getMaintenanceRequests({
             status: req.query.status,
@@ -15,7 +16,7 @@ router.get('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requirePermission('maintenance:read'), async (req, res, next) => {
     try {
         const request = await db.getMaintenanceRequest(req.params.id);
         if (!request) return res.status(404).json({ error: 'Request not found' });
@@ -23,7 +24,7 @@ router.get('/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requirePermission('maintenance:write'), async (req, res, next) => {
     try {
         const request = { id: uuidv4(), ...req.body };
         await db.storeMaintenanceRequest(request);
@@ -31,30 +32,28 @@ router.post('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.put('/:id', async (req, res, next) => {
+// Updating status / assigning requires manage permission
+router.put('/:id', requirePermission('maintenance:manage'), async (req, res, next) => {
     try {
         await db.updateMaintenanceRequest(req.params.id, req.body);
-        const request = await db.getMaintenanceRequest(req.params.id);
-        res.json(request);
+        res.json(await db.getMaintenanceRequest(req.params.id));
     } catch (err) { next(err); }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requirePermission('maintenance:manage'), async (req, res, next) => {
     try {
         await db.removeMaintenanceRequest(req.params.id);
         res.sendStatus(200);
     } catch (err) { next(err); }
 });
 
-// Comments on a request
-router.get('/:id/comments', async (req, res, next) => {
+router.get('/:id/comments', requirePermission('maintenance:read'), async (req, res, next) => {
     try {
-        const comments = await db.getRequestComments(req.params.id);
-        res.json(comments);
+        res.json(await db.getRequestComments(req.params.id));
     } catch (err) { next(err); }
 });
 
-router.post('/:id/comments', async (req, res, next) => {
+router.post('/:id/comments', requirePermission('maintenance:write'), async (req, res, next) => {
     try {
         const comment = { id: uuidv4(), request_id: req.params.id, ...req.body };
         await db.storeRequestComment(comment);

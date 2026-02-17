@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
+const { requirePermission } = require('../middleware/auth');
 
 // ── Maintenance Charges ──
 
-router.get('/maintenance-charges', async (req, res, next) => {
+router.get('/maintenance-charges', requirePermission('finances:read'), async (req, res, next) => {
     try {
         const charges = await db.getMaintenanceCharges({
             unit_id: req.query.unit_id,
@@ -17,7 +18,7 @@ router.get('/maintenance-charges', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/maintenance-charges', async (req, res, next) => {
+router.post('/maintenance-charges', requirePermission('finances:write'), async (req, res, next) => {
     try {
         const charge = { id: uuidv4(), ...req.body };
         await db.storeMaintenanceCharge(charge);
@@ -25,7 +26,7 @@ router.post('/maintenance-charges', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.post('/maintenance-charges/generate', async (req, res, next) => {
+router.post('/maintenance-charges/generate', requirePermission('finances:write'), async (req, res, next) => {
     try {
         const { period_month, period_year } = req.body;
         const units = await db.getUnits();
@@ -48,7 +49,7 @@ router.post('/maintenance-charges/generate', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.put('/maintenance-charges/:id', async (req, res, next) => {
+router.put('/maintenance-charges/:id', requirePermission('finances:write'), async (req, res, next) => {
     try {
         await db.updateMaintenanceCharge(req.params.id, req.body);
         res.json({ id: req.params.id, ...req.body });
@@ -57,14 +58,13 @@ router.put('/maintenance-charges/:id', async (req, res, next) => {
 
 // ── Assessments ──
 
-router.get('/assessments', async (req, res, next) => {
+router.get('/assessments', requirePermission('finances:read'), async (req, res, next) => {
     try {
-        const assessments = await db.getAssessments();
-        res.json(assessments);
+        res.json(await db.getAssessments());
     } catch (err) { next(err); }
 });
 
-router.post('/assessments', async (req, res, next) => {
+router.post('/assessments', requirePermission('finances:write'), async (req, res, next) => {
     try {
         const assessment = { id: uuidv4(), ...req.body };
         await db.storeAssessment(assessment);
@@ -72,14 +72,13 @@ router.post('/assessments', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.get('/assessments/:id/charges', async (req, res, next) => {
+router.get('/assessments/:id/charges', requirePermission('finances:read'), async (req, res, next) => {
     try {
-        const charges = await db.getAssessmentCharges(req.params.id);
-        res.json(charges);
+        res.json(await db.getAssessmentCharges(req.params.id));
     } catch (err) { next(err); }
 });
 
-router.post('/assessments/:id/generate', async (req, res, next) => {
+router.post('/assessments/:id/generate', requirePermission('finances:write'), async (req, res, next) => {
     try {
         const assessments = await db.getAssessments();
         const assessment = assessments.find(a => a.id === req.params.id);
@@ -109,7 +108,7 @@ router.post('/assessments/:id/generate', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.put('/assessment-charges/:id', async (req, res, next) => {
+router.put('/assessment-charges/:id', requirePermission('finances:write'), async (req, res, next) => {
     try {
         await db.updateAssessmentCharge(req.params.id, req.body);
         res.json({ id: req.params.id, ...req.body });

@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const { requireAuth, requirePermission } = require('../middleware/auth');
+const { getPermissionsForRole } = require('../auth/permissions');
 
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
@@ -16,6 +18,11 @@ function verifyPassword(password, stored) {
     return hash === verify;
 }
 
+function safeUser(user) {
+    const { password_hash, ...rest } = user;
+    return { ...rest, permissions: getPermissionsForRole(user.role) };
+}
+
 router.post('/login', async (req, res, next) => {
     try {
         const { email, password } = req.body;
@@ -26,26 +33,22 @@ router.post('/login', async (req, res, next) => {
         if (!user || !verifyPassword(password, user.password_hash)) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
-        const { password_hash, ...safeUser } = user;
-        req.session.user = safeUser;
-        res.json(safeUser);
+        req.session.user = { id: user.id, email: user.email, role: user.role, resident_id: user.resident_id };
+        res.json(safeUser(user));
     } catch (err) { next(err); }
 });
 
-router.post('/logout', (req, res) => {
-    req.session.destroy(() => {
-        res.json({ ok: true });
-    });
+router.post('/logout', requireAuth, (req, res) => {
+    req.session.destroy(() => res.json({ ok: true }));
 });
 
 router.get('/me', (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.status(401).json({ error: 'Not authenticated' });
-    }
-    res.json(req.session.user);
+    if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+    res.json(req.user);
 });
 
-router.post('/register', async (req, res, next) => {
+// Only admins can create users (self-registration is off by default)
+router.post('/register', requirePermission('users:write'), async (req, res, next) => {
     try {
         const { email, password, resident_id, role } = req.body;
         if (!email || !password) {
@@ -63,21 +66,17 @@ router.post('/register', async (req, res, next) => {
             role: role || 'resident',
         };
         await db.storeUser(user);
-        const { password_hash, ...safeUser } = user;
-        res.status(201).json(safeUser);
+        res.status(201).json(safeUser(user));
     } catch (err) { next(err); }
 });
 
-// ── User management (admin) ──
-
-router.get('/users', async (req, res, next) => {
+router.get('/users', requirePermission('users:read'), async (req, res, next) => {
     try {
-        const users = await db.getUsers();
-        res.json(users);
+        res.json(await db.getUsers());
     } catch (err) { next(err); }
 });
 
-router.put('/users/:id', async (req, res, next) => {
+router.put('/users/:id', requirePermission('users:write'), async (req, res, next) => {
     try {
         const updates = {};
         if (req.body.role) updates.role = req.body.role;
@@ -89,7 +88,7 @@ router.put('/users/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.delete('/users/:id', async (req, res, next) => {
+router.delete('/users/:id', requirePermission('users:write'), async (req, res, next) => {
     try {
         await db.removeUser(req.params.id);
         res.sendStatus(200);
