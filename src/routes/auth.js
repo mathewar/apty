@@ -3,6 +3,9 @@ const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const { requireAuth, requireRole } = require('../middleware/auth');
+
+const VALID_ROLES = ['admin', 'resident'];
 
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
@@ -13,8 +16,10 @@ function hashPassword(password) {
 function verifyPassword(password, stored) {
     const [salt, hash] = stored.split(':');
     const verify = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-    return hash === verify;
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(verify, 'hex'));
 }
+
+// ── Public routes ──
 
 router.post('/login', async (req, res, next) => {
     try {
@@ -45,12 +50,15 @@ router.get('/me', (req, res) => {
     res.json(req.session.user);
 });
 
-router.post('/register', async (req, res, next) => {
+// ── Admin-only user management ──
+
+router.post('/register', requireAuth, requireRole('admin'), async (req, res, next) => {
     try {
         const { email, password, resident_id, role } = req.body;
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password required' });
         }
+        const assignedRole = VALID_ROLES.includes(role) ? role : 'resident';
         const existing = await db.getUserByEmail(email);
         if (existing) {
             return res.status(409).json({ error: 'Email already registered' });
@@ -60,7 +68,7 @@ router.post('/register', async (req, res, next) => {
             email,
             password_hash: hashPassword(password),
             resident_id: resident_id || null,
-            role: role || 'resident',
+            role: assignedRole,
         };
         await db.storeUser(user);
         const { password_hash, ...safeUser } = user;
@@ -68,19 +76,17 @@ router.post('/register', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-// ── User management (admin) ──
-
-router.get('/users', async (req, res, next) => {
+router.get('/users', requireAuth, requireRole('admin'), async (req, res, next) => {
     try {
         const users = await db.getUsers();
         res.json(users);
     } catch (err) { next(err); }
 });
 
-router.put('/users/:id', async (req, res, next) => {
+router.put('/users/:id', requireAuth, requireRole('admin'), async (req, res, next) => {
     try {
         const updates = {};
-        if (req.body.role) updates.role = req.body.role;
+        if (req.body.role && VALID_ROLES.includes(req.body.role)) updates.role = req.body.role;
         if (req.body.email) updates.email = req.body.email;
         if (req.body.password) updates.password_hash = hashPassword(req.body.password);
         if (req.body.resident_id !== undefined) updates.resident_id = req.body.resident_id;
@@ -89,7 +95,7 @@ router.put('/users/:id', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-router.delete('/users/:id', async (req, res, next) => {
+router.delete('/users/:id', requireAuth, requireRole('admin'), async (req, res, next) => {
     try {
         await db.removeUser(req.params.id);
         res.sendStatus(200);

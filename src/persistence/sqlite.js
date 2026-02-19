@@ -178,7 +178,7 @@ async function updateResident(id, r) {
          phone=?, role=?, is_primary=?, move_in_date=?, move_out_date=?,
          shares_held=?, details=? WHERE id=?`,
         [r.unit_id, r.first_name, r.last_name, r.email, r.phone,
-         r.role, r.is_primary, r.move_in_date, r.move_out_date,
+         r.role, r.is_primary ? 1 : 0, r.move_in_date, r.move_out_date || null,
          r.shares_held, JSON.stringify(r.details || null), id],
     );
 }
