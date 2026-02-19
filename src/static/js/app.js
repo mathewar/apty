@@ -85,6 +85,7 @@ function Sidebar({ page, setPage, user }) {
         { key: 'staff',         icon: 'fa-hard-hat',        label: 'Staff & Vendors', show: can('staff:read') },
         { key: 'applications',  icon: 'fa-file-alt',        label: 'Applications',    show: can('applications:read') },
         { key: 'compliance',    icon: 'fa-clipboard-check', label: 'Compliance',      show: can('compliance:read') },
+        { key: 'users',         icon: 'fa-user-shield',     label: 'Users',           show: can('users:read') },
     ].filter(i => i.show);
 
     return (
@@ -1549,6 +1550,156 @@ function PackagesPage() {
     );
 }
 
+// ── Users ──
+function UsersPage() {
+    const { Row, Col, Card, Table, Button, Modal, Form, Badge } = ReactBootstrap;
+    const [users, setUsers] = React.useState([]);
+    const [residents, setResidents] = React.useState([]);
+    const [showModal, setShowModal] = React.useState(false);
+    const [editing, setEditing] = React.useState(null);
+    const [form, setForm] = React.useState({ email: '', password: '', role: 'resident', resident_id: '' });
+    const [error, setError] = React.useState('');
+
+    const load = () => {
+        api.get('/api/auth/users').then(setUsers).catch(() => {});
+        api.get('/api/residents').then(setResidents).catch(() => {});
+    };
+    React.useEffect(load, []);
+
+    const openAdd = () => {
+        setEditing(null);
+        setForm({ email: '', password: '', role: 'resident', resident_id: '' });
+        setError('');
+        setShowModal(true);
+    };
+
+    const openEdit = (u) => {
+        setEditing(u);
+        setForm({ email: u.email, password: '', role: u.role, resident_id: u.resident_id || '' });
+        setError('');
+        setShowModal(true);
+    };
+
+    const closeModal = () => setShowModal(false);
+
+    const handleSave = async () => {
+        setError('');
+        try {
+            if (editing) {
+                const body = { role: form.role, resident_id: form.resident_id || null };
+                if (form.password) body.password = form.password;
+                await api.put(`/api/auth/users/${editing.id}`, body);
+            } else {
+                if (!form.email || !form.password) { setError('Email and password are required'); return; }
+                await api.post('/api/auth/register', form);
+            }
+            load();
+            closeModal();
+        } catch (e) {
+            setError(e.message || 'Save failed');
+        }
+    };
+
+    const handleDelete = async (u) => {
+        if (!confirm(`Delete user ${u.email}?`)) return;
+        await api.del(`/api/auth/users/${u.id}`);
+        load();
+    };
+
+    const residentName = (id) => {
+        const r = residents.find(r => r.id === id);
+        return r ? `${r.first_name} ${r.last_name}` : '—';
+    };
+
+    return (
+        <div>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+                <h4 className="mb-0">Users</h4>
+                <Button size="sm" onClick={openAdd}><i className="fas fa-plus mr-1" />Add User</Button>
+            </div>
+            <Card className="table-card">
+                <Table hover responsive className="mb-0">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Linked Resident</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map(u => (
+                            <tr key={u.id}>
+                                <td>{u.email}</td>
+                                <td>
+                                    <span className={`role-badge role-${u.role}`}>{u.role}</span>
+                                </td>
+                                <td>{residentName(u.resident_id)}</td>
+                                <td className="text-right">
+                                    <Button size="sm" variant="outline-secondary" className="mr-1"
+                                        onClick={() => openEdit(u)}>
+                                        <i className="fas fa-edit" />
+                                    </Button>
+                                    <Button size="sm" variant="outline-danger"
+                                        onClick={() => handleDelete(u)}>
+                                        <i className="fas fa-trash" />
+                                    </Button>
+                                </td>
+                            </tr>
+                        ))}
+                        {users.length === 0 && (
+                            <tr><td colSpan="4" className="text-center text-muted py-4">No users found</td></tr>
+                        )}
+                    </tbody>
+                </Table>
+            </Card>
+
+            <Modal show={showModal} onHide={closeModal}>
+                <Modal.Header closeButton>
+                    <Modal.Title>{editing ? 'Edit User' : 'Add User'}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {error && <div className="alert alert-danger py-2">{error}</div>}
+                    {!editing && (
+                        <Form.Group>
+                            <Form.Label>Email</Form.Label>
+                            <Form.Control type="email" value={form.email}
+                                onChange={e => setForm({ ...form, email: e.target.value })} />
+                        </Form.Group>
+                    )}
+                    <Form.Group>
+                        <Form.Label>{editing ? 'New Password (leave blank to keep)' : 'Password'}</Form.Label>
+                        <Form.Control type="password" value={form.password}
+                            onChange={e => setForm({ ...form, password: e.target.value })} />
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Role</Form.Label>
+                        <Form.Control as="select" value={form.role}
+                            onChange={e => setForm({ ...form, role: e.target.value })}>
+                            <option value="resident">resident</option>
+                            <option value="admin">admin</option>
+                        </Form.Control>
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Linked Resident (optional)</Form.Label>
+                        <Form.Control as="select" value={form.resident_id}
+                            onChange={e => setForm({ ...form, resident_id: e.target.value })}>
+                            <option value="">— None —</option>
+                            {residents.map(r => (
+                                <option key={r.id} value={r.id}>{r.first_name} {r.last_name}</option>
+                            ))}
+                        </Form.Control>
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={closeModal}>Cancel</Button>
+                    <Button onClick={handleSave}>Save</Button>
+                </Modal.Footer>
+            </Modal>
+        </div>
+    );
+}
+
 // ── Main App ──
 function App() {
     const { Navbar, Container, Row, Col, Button } = ReactBootstrap;
@@ -1585,6 +1736,7 @@ function App() {
         applications:  ApplicationsPage,
         compliance:    CompliancePage,
         packages:      PackagesPage,
+        users:         UsersPage,
     };
 
     const PageComponent = pages[page] || DashboardPage;
