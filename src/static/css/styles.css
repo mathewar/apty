@@ -216,8 +216,97 @@ body {
     border: 1px solid #c6f6d5;
 }
 
+/* ── Documents ── */
+.doc-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.doc-card-info { flex: 1; min-width: 0; }
+.doc-card-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.doc-card-meta { font-size: 0.78rem; color: #6c757d; }
+.doc-card-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.doc-category-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    background: #e9ecef;
+    color: #495057;
+    margin-right: 0.4rem;
+}
+
+/* ── Chart Modal ── */
+.chart-container {
+    position: relative;
+    margin-bottom: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+}
+.chart-container canvas {
+    max-height: 280px;
+}
+.chart-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 0.75rem;
+    color: #2c3e50;
+}
+.analysis-summary {
+    background: #eaf4fb;
+    border-left: 4px solid #3498db;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    font-size: 0.9rem;
+    color: #2c3e50;
+}
+.highlights-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.highlights-list li {
+    padding: 0.3rem 0;
+    font-size: 0.88rem;
+    color: #2c3e50;
+}
+.highlights-list li::before {
+    content: '\2713';
+    color: #27ae60;
+    font-weight: bold;
+    margin-right: 0.5rem;
+}
+.analyzing-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: #f39c12;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .sidebar { min-height: auto; }
     .stat-number { font-size: 1.5rem; }
+    .doc-card { flex-direction: column; align-items: flex-start; }
 }

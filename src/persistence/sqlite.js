@@ -244,6 +244,21 @@ async function storeDocument(d) {
         [d.id, d.title, d.category, d.file_path, d.uploaded_by, JSON.stringify(d.details || null)],
     );
 }
+async function getDocument(id) {
+    const rows = query('SELECT * FROM documents WHERE id=?', [id]);
+    return rows[0] || null;
+}
+async function updateDocument(id, updates) {
+    const sets = [];
+    const params = [];
+    if (updates.analysis_json !== undefined) { sets.push('analysis_json=?'); params.push(updates.analysis_json); }
+    if (updates.file_path !== undefined) { sets.push('file_path=?'); params.push(updates.file_path); }
+    if (updates.file_size !== undefined) { sets.push('file_size=?'); params.push(updates.file_size); }
+    if (updates.mime_type !== undefined) { sets.push('mime_type=?'); params.push(updates.mime_type); }
+    if (sets.length === 0) return;
+    params.push(id);
+    query(`UPDATE documents SET ${sets.join(', ')} WHERE id=?`, params);
+}
 async function removeDocument(id) {
     const rows = query('SELECT * FROM documents WHERE id=?', [id]);
     query('DELETE FROM documents WHERE id=?', [id]);
@@ -654,7 +669,7 @@ module.exports = {
     getResidents, getResident, storeResident, updateResident, removeResident,
     getBoardMembers, storeBoardMember, updateBoardMember, removeBoardMember,
     getAnnouncements, getAnnouncement, storeAnnouncement, updateAnnouncement, removeAnnouncement,
-    getDocuments, storeDocument, removeDocument,
+    getDocuments, getDocument, storeDocument, updateDocument, removeDocument,
     getMaintenanceRequests, getMaintenanceRequest, storeMaintenanceRequest,
     updateMaintenanceRequest, removeMaintenanceRequest,
     getRequestComments, storeRequestComment,

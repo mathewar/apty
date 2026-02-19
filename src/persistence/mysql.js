@@ -321,6 +321,21 @@ async function storeDocument(d) {
     );
 }
 
+async function getDocument(id) {
+    const rows = await query('SELECT * FROM documents WHERE id=?', [id]);
+    return rows[0] ? Object.assign({}, rows[0]) : null;
+}
+async function updateDocument(id, updates) {
+    const sets = [];
+    const params = [];
+    if (updates.analysis_json !== undefined) { sets.push('analysis_json=?'); params.push(updates.analysis_json); }
+    if (updates.file_path !== undefined) { sets.push('file_path=?'); params.push(updates.file_path); }
+    if (updates.file_size !== undefined) { sets.push('file_size=?'); params.push(updates.file_size); }
+    if (updates.mime_type !== undefined) { sets.push('mime_type=?'); params.push(updates.mime_type); }
+    if (sets.length === 0) return;
+    params.push(id);
+    await query(`UPDATE documents SET ${sets.join(', ')} WHERE id=?`, params);
+}
 async function removeDocument(id) {
     const rows = await query('SELECT * FROM documents WHERE id=?', [id]);
     await query('DELETE FROM documents WHERE id=?', [id]);
@@ -838,7 +853,7 @@ module.exports = {
     // Announcements
     getAnnouncements, getAnnouncement, storeAnnouncement, updateAnnouncement, removeAnnouncement,
     // Documents
-    getDocuments, storeDocument, removeDocument,
+    getDocuments, getDocument, storeDocument, updateDocument, removeDocument,
     // Maintenance requests
     getMaintenanceRequests, getMaintenanceRequest, storeMaintenanceRequest,
     updateMaintenanceRequest, removeMaintenanceRequest,

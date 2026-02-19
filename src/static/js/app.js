@@ -79,6 +79,7 @@ function Sidebar({ page, setPage, user }) {
         { key: 'residents',     icon: 'fa-users',           label: 'Residents',       show: can('residents:read') },
         { key: 'board',         icon: 'fa-user-tie',        label: 'Board',           show: can('board:read') },
         { key: 'announcements', icon: 'fa-bullhorn',        label: 'Announcements',   show: can('announcements:read') },
+        { key: 'documents',     icon: 'fa-folder-open',     label: 'Documents',       show: can('documents:read') },
         { key: 'maintenance',   icon: 'fa-wrench',          label: 'Maintenance',     show: can('maintenance:read') },
         { key: 'packages',      icon: 'fa-box',             label: 'Packages',        show: can('packages:read') },
         { key: 'finances',      icon: 'fa-dollar-sign',     label: 'Finances',        show: can('finances:read') },
@@ -1700,6 +1701,301 @@ function UsersPage() {
     );
 }
 
+// ── Documents ──
+function ChartsModal({ doc, analysis, onClose }) {
+    const { Modal, Button } = ReactBootstrap;
+    const chartRefs = React.useRef([]);
+    const chartInstances = React.useRef([]);
+
+    React.useEffect(() => {
+        // Destroy old charts first
+        chartInstances.current.forEach(c => c && c.destroy());
+        chartInstances.current = [];
+
+        if (!analysis || !analysis.charts) return;
+
+        analysis.charts.forEach((chart, i) => {
+            const canvas = chartRefs.current[i];
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            let config;
+            if (chart.type === 'pie') {
+                config = {
+                    type: 'pie',
+                    data: {
+                        labels: chart.labels,
+                        datasets: [{
+                            data: chart.data,
+                            backgroundColor: [
+                                '#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6',
+                                '#1abc9c','#e67e22','#34495e','#e91e63','#00bcd4',
+                            ],
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const val = ctx.parsed;
+                                        return ` ${ctx.label}: ${chart.unit || ''}${val.toLocaleString()}`;
+                                    },
+                                },
+                            },
+                        },
+                    },
+                };
+            } else {
+                config = {
+                    type: 'bar',
+                    data: {
+                        labels: chart.labels,
+                        datasets: (chart.datasets || []).map((ds, di) => ({
+                            label: ds.label,
+                            data: ds.data,
+                            backgroundColor: ['#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6'][di % 5],
+                        })),
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { position: 'top' } },
+                        scales: {
+                            y: {
+                                ticks: {
+                                    callback: (val) => `${chart.unit || ''}${val.toLocaleString()}`,
+                                },
+                            },
+                        },
+                    },
+                };
+            }
+
+            chartInstances.current[i] = new Chart(ctx, config);
+        });
+
+        return () => {
+            chartInstances.current.forEach(c => c && c.destroy());
+        };
+    }, [analysis]);
+
+    return (
+        <Modal show onHide={onClose} size="lg">
+            <Modal.Header closeButton>
+                <Modal.Title>{analysis ? analysis.title || doc.title : doc.title}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+                {analysis ? (
+                    <div>
+                        {analysis.summary && (
+                            <div className="analysis-summary">{analysis.summary}</div>
+                        )}
+                        {analysis.charts && analysis.charts.map((chart, i) => (
+                            <div key={i} className="chart-container">
+                                <div className="chart-title">{chart.title}</div>
+                                <canvas ref={el => chartRefs.current[i] = el} />
+                            </div>
+                        ))}
+                        {analysis.highlights && analysis.highlights.length > 0 && (
+                            <div className="mt-3">
+                                <strong>Key Highlights</strong>
+                                <ul className="highlights-list mt-2">
+                                    {analysis.highlights.map((h, i) => (
+                                        <li key={i}>{h}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="text-center py-4 text-muted">No analysis available.</div>
+                )}
+            </Modal.Body>
+            <Modal.Footer>
+                <a href={`/api/documents/${doc.id}/file`} className="btn btn-outline-secondary btn-sm" download>
+                    <i className="fas fa-download mr-1" /> Download PDF
+                </a>
+                <Button variant="secondary" onClick={onClose}>Close</Button>
+            </Modal.Footer>
+        </Modal>
+    );
+}
+
+function DocumentsPage({ user }) {
+    const { Button, Modal, Form, Spinner } = ReactBootstrap;
+    const perms = (user && user.permissions) || [];
+    const can = (p) => perms.includes(p);
+
+    const [docs, setDocs] = React.useState([]);
+    const [showUpload, setShowUpload] = React.useState(false);
+    const [form, setForm] = React.useState({ title: '', category: 'financial' });
+    const [file, setFile] = React.useState(null);
+    const [uploading, setUploading] = React.useState(false);
+    const [analyzingIds, setAnalyzingIds] = React.useState({});
+    const [viewDoc, setViewDoc] = React.useState(null);
+    const [viewAnalysis, setViewAnalysis] = React.useState(null);
+
+    const load = () => api.get('/api/documents').then(setDocs).catch(() => {});
+    React.useEffect(() => { load(); }, []);
+
+    const handleUpload = () => {
+        if (!file) return;
+        setUploading(true);
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('title', form.title || file.name);
+        fd.append('category', form.category);
+        fetch('/api/documents/upload', { method: 'POST', body: fd })
+            .then(r => r.ok ? r.json() : Promise.reject(r))
+            .then(() => {
+                setUploading(false);
+                setShowUpload(false);
+                setForm({ title: '', category: 'financial' });
+                setFile(null);
+                load();
+            })
+            .catch(() => setUploading(false));
+    };
+
+    const handleAnalyze = (id) => {
+        setAnalyzingIds(prev => ({ ...prev, [id]: true }));
+        api.post(`/api/documents/${id}/analyze`)
+            .then(() => load())
+            .catch(() => {})
+            .finally(() => setAnalyzingIds(prev => ({ ...prev, [id]: false })));
+    };
+
+    const handleViewCharts = (doc) => {
+        setViewDoc(doc);
+        api.get(`/api/documents/${doc.id}/analysis`)
+            .then(setViewAnalysis)
+            .catch(() => setViewAnalysis(null));
+    };
+
+    const handleDelete = (id) => api.del(`/api/documents/${id}`).then(load);
+
+    const fmtSize = (bytes) => {
+        if (!bytes) return '';
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    };
+
+    const fmtDate = (dt) => dt ? new Date(dt).toLocaleDateString() : '';
+
+    return (
+        <div>
+            <div className="d-flex justify-content-between mb-3">
+                <h4>Documents</h4>
+                {can('documents:write') && (
+                    <Button size="sm" onClick={() => setShowUpload(true)}>
+                        <i className="fas fa-upload mr-1" /> Upload Document
+                    </Button>
+                )}
+            </div>
+
+            {docs.length === 0 && (
+                <div className="text-muted text-center py-4">No documents yet.</div>
+            )}
+
+            {docs.map(doc => (
+                <div key={doc.id} className="doc-card">
+                    <div className="doc-card-info">
+                        <div className="doc-card-title">
+                            <i className="fas fa-file-pdf mr-2 text-danger" />
+                            {doc.title}
+                        </div>
+                        <div className="doc-card-meta">
+                            <span className="doc-category-badge">{doc.category}</span>
+                            {fmtDate(doc.uploaded_at)}
+                            {doc.file_size ? ` · ${fmtSize(doc.file_size)}` : ''}
+                        </div>
+                    </div>
+                    <div className="doc-card-actions">
+                        {doc.analysis_json ? (
+                            <Button size="sm" variant="success" onClick={() => handleViewCharts(doc)}>
+                                <i className="fas fa-chart-pie mr-1" /> View Charts
+                            </Button>
+                        ) : doc.mime_type === 'application/pdf' && can('documents:write') ? (
+                            <Button size="sm" variant="outline-secondary"
+                                disabled={!!analyzingIds[doc.id]}
+                                onClick={() => handleAnalyze(doc.id)}>
+                                {analyzingIds[doc.id]
+                                    ? <span className="analyzing-badge"><Spinner animation="border" size="sm" /> Analyzing…</span>
+                                    : <><i className="fas fa-magic mr-1" /> Analyze</>
+                                }
+                            </Button>
+                        ) : null}
+                        {can('documents:write') && (
+                            <Button size="sm" variant="outline-danger"
+                                onClick={() => handleDelete(doc.id)}>
+                                <i className="fas fa-trash" />
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            ))}
+
+            {/* Upload Modal */}
+            <Modal show={showUpload} onHide={() => { setShowUpload(false); setFile(null); }}>
+                <Modal.Header closeButton>
+                    <Modal.Title>Upload Document</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group>
+                        <Form.Label>Title</Form.Label>
+                        <Form.Control value={form.title}
+                            placeholder="e.g. Annual Budget 2024"
+                            onChange={e => setForm({ ...form, title: e.target.value })} />
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Category</Form.Label>
+                        <Form.Control as="select" value={form.category}
+                            onChange={e => setForm({ ...form, category: e.target.value })}>
+                            <option value="financial">Financial</option>
+                            <option value="minutes">Meeting Minutes</option>
+                            <option value="legal">Legal</option>
+                            <option value="general">General</option>
+                        </Form.Control>
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>File</Form.Label>
+                        <Form.Control type="file" accept=".pdf,.doc,.docx,.xls,.xlsx"
+                            onChange={e => setFile(e.target.files[0])} />
+                        <Form.Text className="text-muted">
+                            PDFs will be automatically analyzed for charts and insights.
+                        </Form.Text>
+                    </Form.Group>
+                    {uploading && file && file.type === 'application/pdf' && (
+                        <div className="analyzing-badge mt-2">
+                            <Spinner animation="border" size="sm" /> Uploading and analyzing…
+                        </div>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => { setShowUpload(false); setFile(null); }}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleUpload} disabled={!file || uploading}>
+                        {uploading ? 'Uploading…' : 'Upload'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Charts Modal */}
+            {viewDoc && (
+                <ChartsModal
+                    doc={viewDoc}
+                    analysis={viewAnalysis}
+                    onClose={() => { setViewDoc(null); setViewAnalysis(null); }}
+                />
+            )}
+        </div>
+    );
+}
+
 // ── Main App ──
 function App() {
     const { Navbar, Container, Row, Col, Button } = ReactBootstrap;
@@ -1730,6 +2026,7 @@ function App() {
         residents:     ResidentsPage,
         board:         BoardPage,
         announcements: AnnouncementsPage,
+        documents:     DocumentsPage,
         maintenance:   MaintenancePage,
         finances:      FinancesPage,
         staff:         StaffPage,
