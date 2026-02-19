@@ -1924,7 +1924,7 @@ function DocumentsPage({ user }) {
                                 onClick={() => handleAnalyze(doc.id)}>
                                 {analyzingIds[doc.id]
                                     ? <span className="analyzing-badge"><Spinner animation="border" size="sm" /> Analyzing…</span>
-                                    : <><i className="fas fa-magic mr-1" /> Analyze</>
+                                    : <span><i className="fas fa-magic mr-1" /> Analyze</span>
                                 }
                             </Button>
                         ) : null}

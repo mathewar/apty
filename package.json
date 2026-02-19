@@ -6,6 +6,7 @@
   "scripts": {
     "prettify": "prettier -l --write \"**/*.js\"",
     "test": "jest",
+    "test:integration": "jest --config jest.integration.json --runInBand --forceExit",
     "dev": "nodemon src/index.js",
     "seed": "node src/persistence/seed.js",
     "start": "node src/index.js"
@@ -33,11 +34,16 @@
   "devDependencies": {
     "jest": "^24.9.0",
     "nodemon": "^1.19.2",
-    "prettier": "^1.18.2"
+    "prettier": "^1.18.2",
+    "puppeteer": "^22.15.0"
   },
   "jest": {
     "setupFiles": [
       "<rootDir>/src/jest/setEnvVars.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/spec/integration/"
     ]
   }
 }
