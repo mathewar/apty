@@ -315,9 +315,10 @@ async function getDocuments(category) {
 
 async function storeDocument(d) {
     await query(
-        `INSERT INTO documents (id, title, category, file_path, uploaded_by, details)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [d.id, d.title, d.category, d.file_path, d.uploaded_by, JSON.stringify(d.details || null)],
+        `INSERT INTO documents (id, title, category, file_path, uploaded_by, details, file_size, mime_type, analysis_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [d.id, d.title, d.category, d.file_path, d.uploaded_by, JSON.stringify(d.details || null),
+         d.file_size || null, d.mime_type || null, d.analysis_json || null],
     );
 }
 
