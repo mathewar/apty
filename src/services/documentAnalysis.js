@@ -5,10 +5,11 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function analyzeDocument(filePath) {
-    // 1. Extract text via pdf-parse
-    const pdfParse = require('pdf-parse');
+    // 1. Extract text via pdf-parse (v2 API)
+    const { PDFParse } = require('pdf-parse');
     const buffer = fs.readFileSync(filePath);
-    const data = await pdfParse(buffer);
+    const parser = new PDFParse({ data: buffer });
+    const data = await parser.getText();
     const text = data.text;
 
     if (!text || text.trim().length < 50) {
