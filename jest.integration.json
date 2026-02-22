@@ -1,0 +1,10 @@
+{
+    "testMatch": ["**/spec/integration/**/*.spec.js"],
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "resetModules": true,
+    "setupFiles": ["<rootDir>/src/jest/setIntegrationEnv.js"],
+    "moduleNameMapper": {
+        "puppeteer-core/internal/(.*)": "<rootDir>/node_modules/puppeteer-core/lib/cjs/puppeteer/$1"
+    }
+}

@@ -1856,7 +1856,7 @@ function DocumentsPage({ user }) {
                 setFile(null);
                 load();
             })
-            .catch(() => setUploading(false));
+            .catch((err) => { setUploading(false); console.error('[upload error]', err); });
     };
 
     const handleAnalyze = (id) => {
