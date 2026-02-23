@@ -663,6 +663,20 @@ async function removeViolation(id) {
     query('DELETE FROM violations WHERE id=?', [id]);
 }
 
+// ── Feedback ──
+async function storeFeedback(f) {
+    query(
+        `INSERT INTO feedback (id, user_id, user_email, user_role, page, url, feedback_text, screenshot_data, user_agent, viewport, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [f.id, f.user_id || null, f.user_email || null, f.user_role || null,
+         f.page || null, f.url || null, f.feedback_text,
+         f.screenshot_data || null, f.user_agent || null, f.viewport || null],
+    );
+}
+async function getFeedback() {
+    return query('SELECT * FROM feedback ORDER BY created_at DESC');
+}
+
 module.exports = {
     init, teardown,
     getBuilding, upsertBuilding,
@@ -686,4 +700,5 @@ module.exports = {
     getPackages, getPackage, storePackage, updatePackage, removePackage, getPackageByProviderEventId,
     getServiceProviders, getServiceProvider, getServiceProviderByApiKeyHash,
     storeServiceProvider, updateServiceProvider, removeServiceProvider,
+    storeFeedback, getFeedback,
 };

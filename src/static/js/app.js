@@ -87,6 +87,7 @@ function Sidebar({ page, setPage, user }) {
         { key: 'applications',  icon: 'fa-file-alt',        label: 'Applications',    show: can('applications:read') },
         { key: 'compliance',    icon: 'fa-clipboard-check', label: 'Compliance',      show: can('compliance:read') },
         { key: 'users',         icon: 'fa-user-shield',     label: 'Users',           show: can('users:read') },
+        { key: 'feedback',      icon: 'fa-comment-dots',    label: 'Feedback',        show: can('users:read') },
     ].filter(i => i.show);
 
     return (
@@ -2055,6 +2056,165 @@ function DocumentsPage({ user, initialDocId }) {
     );
 }
 
+// ── Feedback ──
+function FeedbackButton({ currentPage }) {
+    const { Modal, Button, Form, Spinner } = ReactBootstrap;
+    const [show, setShow] = React.useState(false);
+    const [text, setText] = React.useState('');
+    const [submitting, setSubmitting] = React.useState(false);
+    const [done, setDone] = React.useState(false);
+    const [includeScreenshot, setIncludeScreenshot] = React.useState(true);
+
+    const open = () => { setText(''); setDone(false); setShow(true); };
+    const close = () => setShow(false);
+
+    const handleSubmit = async () => {
+        if (!text.trim()) return;
+        setSubmitting(true);
+        let screenshot_data = null;
+        if (includeScreenshot && typeof html2canvas !== 'undefined') {
+            try {
+                const canvas = await html2canvas(document.body, { scale: 0.5, useCORS: true, logging: false });
+                screenshot_data = canvas.toDataURL('image/jpeg', 0.7);
+            } catch (e) { /* skip if capture fails */ }
+        }
+        api.post('/api/feedback', {
+            feedback_text: text.trim(),
+            page: currentPage,
+            url: window.location.href,
+            screenshot_data,
+            user_agent: navigator.userAgent,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+        })
+            .then(() => { setDone(true); setSubmitting(false); setTimeout(close, 1500); })
+            .catch(() => setSubmitting(false));
+    };
+
+    return (
+        <React.Fragment>
+            <button
+                onClick={open}
+                style={{
+                    position: 'fixed', bottom: '24px', right: '24px', zIndex: 1050,
+                    background: '#3498db', color: '#fff', border: 'none', borderRadius: '50px',
+                    padding: '10px 18px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    cursor: 'pointer', fontSize: '14px', fontWeight: 600,
+                }}
+                title="Share feedback"
+            >
+                <i className="fas fa-comment-dots mr-2" />Feedback
+            </button>
+
+            {show && (
+                <Modal show onHide={close}>
+                    <Modal.Header closeButton>
+                        <Modal.Title><i className="fas fa-comment-dots mr-2" />Share Feedback</Modal.Title>
+                    </Modal.Header>
+                    <Modal.Body>
+                        {done ? (
+                            <div className="text-center py-3 text-success">
+                                <i className="fas fa-check-circle fa-2x mb-2" /><br />
+                                Thanks for your feedback!
+                            </div>
+                        ) : (
+                            <React.Fragment>
+                                <Form.Group>
+                                    <Form.Label>What's on your mind?</Form.Label>
+                                    <Form.Control
+                                        as="textarea" rows={5}
+                                        placeholder="Describe the issue, idea, or anything you'd like us to know…"
+                                        value={text}
+                                        onChange={e => setText(e.target.value)}
+                                        autoFocus
+                                    />
+                                </Form.Group>
+                                <Form.Check
+                                    type="checkbox"
+                                    id="screenshot-check"
+                                    label="Include a screenshot of the current page"
+                                    checked={includeScreenshot}
+                                    onChange={e => setIncludeScreenshot(e.target.checked)}
+                                    className="mt-2"
+                                />
+                                <div className="text-muted small mt-2">
+                                    We'll also record the current page, URL, and browser info to help us investigate.
+                                </div>
+                            </React.Fragment>
+                        )}
+                    </Modal.Body>
+                    {!done && (
+                        <Modal.Footer>
+                            <Button variant="secondary" onClick={close} disabled={submitting}>Cancel</Button>
+                            <Button variant="primary" onClick={handleSubmit} disabled={submitting || !text.trim()}>
+                                {submitting
+                                    ? <React.Fragment><Spinner animation="border" size="sm" className="mr-2" />Capturing…</React.Fragment>
+                                    : 'Send Feedback'}
+                            </Button>
+                        </Modal.Footer>
+                    )}
+                </Modal>
+            )}
+        </React.Fragment>
+    );
+}
+
+function FeedbackPage() {
+    const { Table, Badge } = ReactBootstrap;
+    const [items, setItems] = React.useState([]);
+    const [selected, setSelected] = React.useState(null);
+
+    React.useEffect(() => {
+        api.get('/api/feedback').then(setItems).catch(() => {});
+    }, []);
+
+    const fmtDate = (dt) => dt ? new Date(dt).toLocaleString() : '—';
+
+    return (
+        <div>
+            <h4 className="mb-3">Feedback</h4>
+            {items.length === 0 && <div className="text-muted">No feedback yet.</div>}
+            {items.length > 0 && (
+                <Table hover responsive size="sm">
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>User</th><th>Role</th><th>Page</th><th>Feedback</th><th>Screenshot</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map(f => (
+                            <tr key={f.id} style={{ cursor: f.screenshot_data ? 'pointer' : 'default' }}
+                                onClick={() => f.screenshot_data && setSelected(f)}>
+                                <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(f.created_at)}</td>
+                                <td>{f.user_email || '—'}</td>
+                                <td><Badge variant="secondary">{f.user_role || '—'}</Badge></td>
+                                <td>{f.page || '—'}</td>
+                                <td style={{ maxWidth: 300 }}>
+                                    <div style={{ whiteSpace: 'pre-wrap', maxHeight: 80, overflow: 'hidden' }}>{f.feedback_text}</div>
+                                    {f.url && <div className="text-muted small" style={{ wordBreak: 'break-all' }}>{f.url}</div>}
+                                </td>
+                                <td>{f.screenshot_data ? <i className="fas fa-image text-primary" title="Click row to view" /> : '—'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
+
+            {selected && (
+                <div
+                    onClick={() => setSelected(null)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <div style={{ maxWidth: '90vw', maxHeight: '90vh', overflow: 'auto', background: '#fff', borderRadius: 8, padding: 16 }}>
+                        <div className="mb-2 font-weight-bold">{selected.user_email} — {fmtDate(selected.created_at)}</div>
+                        <div className="mb-3" style={{ whiteSpace: 'pre-wrap' }}>{selected.feedback_text}</div>
+                        <img src={selected.screenshot_data} style={{ maxWidth: '100%', border: '1px solid #ddd', borderRadius: 4 }} alt="screenshot" />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Main App ──
 function App() {
     const { Navbar, Container, Row, Col, Button } = ReactBootstrap;
@@ -2096,6 +2256,7 @@ function App() {
         compliance:    CompliancePage,
         packages:      PackagesPage,
         users:         UsersPage,
+        feedback:      FeedbackPage,
     };
 
     const PageComponent = pages[page] || DashboardPage;
@@ -2124,6 +2285,7 @@ function App() {
                     </Col>
                 </Row>
             </Container>
+            <FeedbackButton currentPage={page} />
         </div>
     );
 }
