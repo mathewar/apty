@@ -1714,6 +1714,16 @@ function ChartsModal({ doc, analysis, onClose }) {
 
         if (!analysis || !analysis.charts) return;
 
+        const COLORS = [
+            '#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6',
+            '#1abc9c','#e67e22','#34495e','#e91e63','#00bcd4',
+        ];
+
+        const fmtVal = (val, unit) => {
+            if (!unit) return val.toLocaleString();
+            return unit === '%' ? `${val.toLocaleString()}%` : `${unit}${val.toLocaleString()}`;
+        };
+
         analysis.charts.forEach((chart, i) => {
             const canvas = chartRefs.current[i];
             if (!canvas) return;
@@ -1727,21 +1737,41 @@ function ChartsModal({ doc, analysis, onClose }) {
                         labels: chart.labels,
                         datasets: [{
                             data: chart.data,
-                            backgroundColor: [
-                                '#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6',
-                                '#1abc9c','#e67e22','#34495e','#e91e63','#00bcd4',
-                            ],
+                            backgroundColor: COLORS,
+                            borderWidth: 2,
+                            borderColor: '#fff',
                         }],
                     },
                     options: {
                         responsive: true,
                         plugins: {
-                            legend: { position: 'bottom' },
+                            title: {
+                                display: true,
+                                text: chart.title,
+                                font: { size: 15, weight: 'bold' },
+                                padding: { bottom: 12 },
+                            },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    generateLabels: (chartInst) => {
+                                        const dataset = chartInst.data.datasets[0];
+                                        const total = dataset.data.reduce((s, v) => s + v, 0);
+                                        return Chart.defaults.plugins.legend.labels.generateLabels(chartInst).map((item, idx) => ({
+                                            ...item,
+                                            text: `${chartInst.data.labels[idx]} (${total > 0 ? Math.round(dataset.data[idx] / total * 100) : 0}%)`,
+                                        }));
+                                    },
+                                },
+                            },
                             tooltip: {
                                 callbacks: {
-                                    label: (ctx) => {
-                                        const val = ctx.parsed;
-                                        return ` ${ctx.label}: ${chart.unit || ''}${val.toLocaleString()}`;
+                                    label: (tooltipCtx) => {
+                                        const dataset = tooltipCtx.chart.data.datasets[0];
+                                        const total = dataset.data.reduce((s, v) => s + v, 0);
+                                        const val = tooltipCtx.parsed;
+                                        const pct = total > 0 ? Math.round(val / total * 100) : 0;
+                                        return ` ${tooltipCtx.label}: ${fmtVal(val, chart.unit)} (${pct}%)`;
                                     },
                                 },
                             },
@@ -1756,17 +1786,29 @@ function ChartsModal({ doc, analysis, onClose }) {
                         datasets: (chart.datasets || []).map((ds, di) => ({
                             label: ds.label,
                             data: ds.data,
-                            backgroundColor: ['#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6'][di % 5],
+                            backgroundColor: COLORS[di % COLORS.length],
+                            borderRadius: 4,
                         })),
                     },
                     options: {
                         responsive: true,
-                        plugins: { legend: { position: 'top' } },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: chart.title,
+                                font: { size: 15, weight: 'bold' },
+                                padding: { bottom: 12 },
+                            },
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (tooltipCtx) => ` ${tooltipCtx.dataset.label}: ${fmtVal(tooltipCtx.parsed.y, chart.unit)}`,
+                                },
+                            },
+                        },
                         scales: {
                             y: {
-                                ticks: {
-                                    callback: (val) => `${chart.unit || ''}${val.toLocaleString()}`,
-                                },
+                                ticks: { callback: (val) => fmtVal(val, chart.unit) },
                             },
                         },
                     },
@@ -1794,7 +1836,6 @@ function ChartsModal({ doc, analysis, onClose }) {
                         )}
                         {analysis.charts && analysis.charts.map((chart, i) => (
                             <div key={i} className="chart-container">
-                                <div className="chart-title">{chart.title}</div>
                                 <canvas ref={el => chartRefs.current[i] = el} />
                             </div>
                         ))}
@@ -1817,13 +1858,19 @@ function ChartsModal({ doc, analysis, onClose }) {
                 <a href={`/api/documents/${doc.id}/file`} className="btn btn-outline-secondary btn-sm" download>
                     <i className="fas fa-download mr-1" /> Download PDF
                 </a>
+                <Button variant="outline-primary" size="sm" onClick={() => {
+                    const url = `${window.location.origin}/#documents/${doc.id}`;
+                    navigator.clipboard.writeText(url).catch(() => {});
+                }}>
+                    <i className="fas fa-link mr-1" /> Copy Link
+                </Button>
                 <Button variant="secondary" onClick={onClose}>Close</Button>
             </Modal.Footer>
         </Modal>
     );
 }
 
-function DocumentsPage({ user }) {
+function DocumentsPage({ user, initialDocId }) {
     const { Button, Modal, Form, Spinner } = ReactBootstrap;
     const perms = (user && user.permissions) || [];
     const can = (p) => perms.includes(p);
@@ -1839,6 +1886,17 @@ function DocumentsPage({ user }) {
 
     const load = () => api.get('/api/documents').then(setDocs).catch(() => {});
     React.useEffect(() => { load(); }, []);
+
+    // Auto-open modal when arriving via shared link
+    React.useEffect(() => {
+        if (!initialDocId) return;
+        api.get(`/api/documents/${initialDocId}`)
+            .then(doc => {
+                setViewDoc(doc);
+                api.get(`/api/documents/${initialDocId}/analysis`).then(setViewAnalysis).catch(() => setViewAnalysis(null));
+            })
+            .catch(() => {});
+    }, [initialDocId]);
 
     const handleUpload = () => {
         if (!file) return;
@@ -1869,6 +1927,7 @@ function DocumentsPage({ user }) {
 
     const handleViewCharts = (doc) => {
         setViewDoc(doc);
+        window.location.hash = `#documents/${doc.id}`;
         api.get(`/api/documents/${doc.id}/analysis`)
             .then(setViewAnalysis)
             .catch(() => setViewAnalysis(null));
@@ -1989,7 +2048,7 @@ function DocumentsPage({ user }) {
                 <ChartsModal
                     doc={viewDoc}
                     analysis={viewAnalysis}
-                    onClose={() => { setViewDoc(null); setViewAnalysis(null); }}
+                    onClose={() => { setViewDoc(null); setViewAnalysis(null); window.location.hash = ''; }}
                 />
             )}
         </div>
@@ -2001,9 +2060,12 @@ function App() {
     const { Navbar, Container, Row, Col, Button } = ReactBootstrap;
     const [user, setUser] = React.useState(undefined); // undefined = loading, null = logged out
     const [page, setPage] = React.useState('dashboard');
+    const [initialDocId, setInitialDocId] = React.useState(null);
 
-    // Check for existing session on load
+    // Check for existing session on load; also parse deep-link hash
     React.useEffect(() => {
+        const match = window.location.hash.match(/^#documents\/(.+)$/);
+        if (match) { setPage('documents'); setInitialDocId(match[1]); }
         api.get('/api/auth/me').then(setUser).catch(() => setUser(null));
     }, []);
 
@@ -2058,7 +2120,7 @@ function App() {
                         <Sidebar page={page} setPage={setPage} user={user} />
                     </Col>
                     <Col md={10} className="main-content">
-                        <PageComponent user={user} />
+                        <PageComponent user={user} initialDocId={page === 'documents' ? initialDocId : null} />
                     </Col>
                 </Row>
             </Container>

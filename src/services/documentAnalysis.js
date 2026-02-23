@@ -49,10 +49,12 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with this exact sc
 
 Rules:
 - Include 2-4 charts mixing pie and bar types where appropriate
-- Extract real numbers from the document
+- For pie charts, break down into at least 4-6 individual categories — do NOT lump multiple items together (e.g. list taxes, insurance, and labor as separate slices)
+- Extract real numbers from the document; estimate proportions from text if exact figures are unavailable
 - If no meaningful financial data exists, return at least a summary and highlights with an empty charts array
 - highlights should be 3-5 bullet points of key takeaways for residents
 - All monetary values should be numbers (not strings)
+- Percentage values should be numbers 0-100 (e.g. 30 for 30%)
 
 Document text:
 ${text.substring(0, 15000)}`;
