@@ -11,7 +11,7 @@ function query(sql, params = []) {
     sql = sql.replace(/NOW\(\)/g, "datetime('now')");
     sql = sql.replace(/MEDIUMTEXT/gi, 'TEXT');
     sql = sql.replace(/INT UNSIGNED/gi, 'INTEGER');
-    sql = sql.replace(/JSON/gi, 'TEXT');
+    sql = sql.replace(/\bJSON\b/gi, 'TEXT');
 
     const trimmed = sql.trim().toUpperCase();
     if (
@@ -47,7 +47,7 @@ function runMigrations() {
         // Adapt MySQL DDL for SQLite
         sql = sql.replace(/MEDIUMTEXT/gi, 'TEXT');
         sql = sql.replace(/INT UNSIGNED/gi, 'INTEGER');
-        sql = sql.replace(/JSON/gi, 'TEXT');
+        sql = sql.replace(/\bJSON\b/gi, 'TEXT');
         sql = sql.replace(/NOW\(\)/g, 'CURRENT_TIMESTAMP');
         const statements = sql
             .split(';')

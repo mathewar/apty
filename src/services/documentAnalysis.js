@@ -17,7 +17,7 @@ async function analyzeDocument(filePath) {
     }
 
     // 2. Send to Gemini with structured prompt
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const prompt = `You are a financial data analyst. Analyze the following building/co-op document text and extract key financial data to create interactive charts for residents.
 

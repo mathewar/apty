@@ -6,7 +6,7 @@
   "scripts": {
     "prettify": "prettier -l --write \"**/*.js\"",
     "test": "jest",
-    "test:integration": "jest --config jest.integration.json --runInBand --forceExit",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.json --runInBand --forceExit",
     "dev": "nodemon src/index.js",
     "seed": "node src/persistence/seed.js",
     "start": "node src/index.js"
@@ -32,6 +32,7 @@
     "singleQuote": true
   },
   "devDependencies": {
+    "form-data": "^4.0.5",
     "jest": "^29.7.0",
     "nodemon": "^1.19.2",
     "prettier": "^1.18.2",
