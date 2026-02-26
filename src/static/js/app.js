@@ -88,6 +88,7 @@ function Sidebar({ page, setPage, user }) {
         { key: 'compliance',    icon: 'fa-clipboard-check', label: 'Compliance',      show: can('compliance:read') },
         { key: 'users',         icon: 'fa-user-shield',     label: 'Users',           show: can('users:read') },
         { key: 'feedback',      icon: 'fa-comment-dots',    label: 'Feedback',        show: can('users:read') },
+        { key: 'audit',         icon: 'fa-history',         label: 'Audit Log',       show: can('users:read') },
     ].filter(i => i.show);
 
     return (
@@ -118,52 +119,142 @@ function Sidebar({ page, setPage, user }) {
 }
 
 // ── Dashboard ──
-function DashboardPage() {
-    const { Row, Col, Card, Table } = ReactBootstrap;
+function DashboardPriorityChart({ requests }) {
+    const chartRef = React.useRef(null);
+    const chartInstance = React.useRef(null);
+
+    React.useEffect(() => {
+        if (!chartRef.current) return;
+        if (chartInstance.current) { chartInstance.current.destroy(); chartInstance.current = null; }
+        const counts = { emergency: 0, high: 0, normal: 0, low: 0 };
+        requests.forEach(r => { if (counts[r.priority] !== undefined) counts[r.priority]++; });
+        if (Object.values(counts).every(v => v === 0)) return;
+        chartInstance.current = new Chart(chartRef.current.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: ['Emergency', 'High', 'Normal', 'Low'],
+                datasets: [{ data: [counts.emergency, counts.high, counts.normal, counts.low],
+                    backgroundColor: ['#e74c3c', '#e67e22', '#3498db', '#95a5a6'], borderWidth: 2, borderColor: '#fff' }],
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Open Requests by Priority' } } },
+        });
+        return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+    }, [requests]);
+
+    return <canvas ref={chartRef} />;
+}
+
+function DashboardCollectionsChart({ charges }) {
+    const chartRef = React.useRef(null);
+    const chartInstance = React.useRef(null);
+
+    React.useEffect(() => {
+        if (!chartRef.current || charges.length === 0) return;
+        if (chartInstance.current) { chartInstance.current.destroy(); chartInstance.current = null; }
+        const paid = charges.filter(c => c.status === 'paid').reduce((s, c) => s + parseFloat(c.amount || 0), 0);
+        const pending = charges.filter(c => c.status === 'pending').reduce((s, c) => s + parseFloat(c.amount || 0), 0);
+        chartInstance.current = new Chart(chartRef.current.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Collected', 'Outstanding'],
+                datasets: [{ data: [paid, pending], backgroundColor: ['#2ecc71', '#e74c3c'], borderRadius: 4 }],
+            },
+            options: {
+                indexAxis: 'y', responsive: true,
+                plugins: { legend: { display: false }, title: { display: true, text: 'Collections vs Outstanding ($)' } },
+                scales: { x: { ticks: { callback: v => '$' + v.toLocaleString() } } },
+            },
+        });
+        return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+    }, [charges]);
+
+    return <canvas ref={chartRef} />;
+}
+
+function DashboardPage({ user }) {
+    const { Row, Col, Card, Table, Badge } = ReactBootstrap;
+    const perms = (user && user.permissions) || [];
+    const can = (p) => perms.includes(p);
+
     const [building, setBuilding] = React.useState(null);
     const [units, setUnits] = React.useState([]);
     const [announcements, setAnnouncements] = React.useState([]);
     const [requests, setRequests] = React.useState([]);
     const [packages, setPackages] = React.useState([]);
+    const [charges, setCharges] = React.useState([]);
+    const [compliance, setCompliance] = React.useState([]);
+    const [applications, setApplications] = React.useState([]);
+    const [auditEntries, setAuditEntries] = React.useState([]);
 
     React.useEffect(() => {
         api.get('/api/building').then(setBuilding).catch(() => {});
-        api.get('/api/units').then(setUnits);
-        api.get('/api/announcements').then(setAnnouncements);
-        api.get('/api/maintenance').then(setRequests);
+        api.get('/api/units').then(setUnits).catch(() => {});
+        api.get('/api/announcements').then(setAnnouncements).catch(() => {});
+        api.get('/api/maintenance').then(setRequests).catch(() => {});
         api.get('/api/packages').then(setPackages).catch(() => {});
+        api.get('/api/finances/maintenance-charges').then(setCharges).catch(() => {});
+        api.get('/api/compliance').then(setCompliance).catch(() => {});
+        api.get('/api/applications').then(setApplications).catch(() => {});
+        if (can('users:read')) api.get('/api/audit?limit=5').then(setAuditEntries).catch(() => {});
     }, []);
 
-    const totalShares = units.reduce((s, u) => s + (u.shares || 0), 0);
-    const totalMaint = units.reduce(
-        (s, u) => s + parseFloat(u.monthly_maintenance || 0), 0,
-    );
-    const openReqs = requests.filter(
-        r => r.status === 'open' || r.status === 'in_progress',
-    ).length;
-    const uncollectedPkgs = packages.filter(
-        p => p.status === 'arrived' || p.status === 'notified',
-    ).length;
+    const totalMaint = units.reduce((s, u) => s + parseFloat(u.monthly_maintenance || 0), 0);
+    const openReqs = requests.filter(r => r.status === 'open' || r.status === 'in_progress').length;
+    const uncollectedPkgs = packages.filter(p => p.status === 'arrived' || p.status === 'notified').length;
+    const pendingApps = applications.filter(a => a.status === 'submitted' || a.status === 'under_review').length;
+
+    const now = new Date();
+    const in30 = new Date(now); in30.setDate(in30.getDate() + 30);
+    const upcomingCompliance = compliance
+        .filter(ci => { const d = new Date(ci.due_date); return d <= in30; })
+        .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+        .slice(0, 5);
+
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const collectedThisMonth = charges
+        .filter(c => c.status === 'paid' && c.paid_date && new Date(c.paid_date).getMonth() + 1 === currentMonth && new Date(c.paid_date).getFullYear() === currentYear)
+        .reduce((s, c) => s + parseFloat(c.amount || 0), 0);
+    const outstanding = charges.filter(c => c.status === 'pending').reduce((s, c) => s + parseFloat(c.amount || 0), 0);
+
+    const openRequests = requests.filter(r => r.status === 'open' || r.status === 'in_progress');
+
+    const complianceColor = (due) => {
+        const d = new Date(due);
+        if (d < now) return '#e74c3c';
+        const days = Math.ceil((d - now) / 86400000);
+        if (days <= 7) return '#e67e22';
+        return '#f39c12';
+    };
+
+    const actionBadgeVariant = (action) => ({
+        CREATE: 'success', UPDATE: 'primary', DELETE: 'danger',
+    }[action] || 'secondary');
+
+    const timeAgo = (dt) => {
+        const diff = Math.floor((Date.now() - new Date(dt)) / 1000);
+        if (diff < 60) return `${diff}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    };
 
     return (
         <div>
-            <h4 className="mb-3">
-                {building ? building.name : 'Building Dashboard'}
-            </h4>
+            <h4 className="mb-1">{building ? building.name : 'Building Dashboard'}</h4>
             {building && (
-                <p className="text-muted">
-                    {building.address}, {building.city}, {building.state}{' '}
-                    {building.zip} &middot; Built {building.year_built} &middot;{' '}
-                    {(building.building_type || '').toUpperCase()}
+                <p className="text-muted mb-3 small">
+                    {building.address}, {building.city}, {building.state} {building.zip}
+                    &middot; Built {building.year_built} &middot; {(building.building_type || '').toUpperCase()}
                 </p>
             )}
-            <Row className="mb-4">
+
+            {/* Row 1: Financial health */}
+            <Row className="mb-2">
                 <Col md={3}>
                     <Card className="stat-card">
                         <Card.Body>
-                            <div className="stat-number text-primary">
-                                {units.length}
-                            </div>
+                            <div className="stat-number text-primary">{units.length}</div>
                             <div className="stat-label">Units</div>
                         </Card.Body>
                     </Card>
@@ -171,19 +262,7 @@ function DashboardPage() {
                 <Col md={3}>
                     <Card className="stat-card">
                         <Card.Body>
-                            <div className="stat-number text-info">
-                                {totalShares.toLocaleString()}
-                            </div>
-                            <div className="stat-label">Total Shares</div>
-                        </Card.Body>
-                    </Card>
-                </Col>
-                <Col md={3}>
-                    <Card className="stat-card">
-                        <Card.Body>
-                            <div className="stat-number text-success">
-                                ${totalMaint.toLocaleString()}
-                            </div>
+                            <div className="stat-number text-success">${totalMaint.toLocaleString()}</div>
                             <div className="stat-label">Monthly Revenue</div>
                         </Card.Body>
                     </Card>
@@ -191,9 +270,27 @@ function DashboardPage() {
                 <Col md={3}>
                     <Card className="stat-card">
                         <Card.Body>
-                            <div className="stat-number text-warning">
-                                {openReqs}
-                            </div>
+                            <div className="stat-number text-info">${collectedThisMonth.toLocaleString()}</div>
+                            <div className="stat-label">Collected This Month</div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={3}>
+                    <Card className="stat-card">
+                        <Card.Body>
+                            <div className="stat-number text-warning">${outstanding.toLocaleString()}</div>
+                            <div className="stat-label">Outstanding Balance</div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
+            {/* Row 2: Operations */}
+            <Row className="mb-4">
+                <Col md={3}>
+                    <Card className="stat-card">
+                        <Card.Body>
+                            <div className="stat-number text-warning">{openReqs}</div>
                             <div className="stat-label">Open Requests</div>
                         </Card.Body>
                     </Card>
@@ -201,39 +298,81 @@ function DashboardPage() {
                 <Col md={3}>
                     <Card className="stat-card">
                         <Card.Body>
-                            <div className="stat-number text-danger">
-                                {uncollectedPkgs}
-                            </div>
+                            <div className="stat-number text-danger">{uncollectedPkgs}</div>
                             <div className="stat-label">Uncollected Packages</div>
                         </Card.Body>
                     </Card>
                 </Col>
+                <Col md={3}>
+                    <Card className="stat-card">
+                        <Card.Body>
+                            <div className="stat-number text-primary">{pendingApps}</div>
+                            <div className="stat-label">Pending Applications</div>
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={3}>
+                    <Card className="stat-card">
+                        <Card.Body>
+                            <div className="stat-number text-danger">{upcomingCompliance.length}</div>
+                            <div className="stat-label">Compliance Due ≤30 days</div>
+                        </Card.Body>
+                    </Card>
+                </Col>
             </Row>
+
+            {/* Charts + Compliance + Audit */}
+            <Row className="mb-3">
+                <Col md={4}>
+                    <Card className="table-card mb-3">
+                        <Card.Header><i className="fas fa-chart-pie mr-2" />Maintenance Priority</Card.Header>
+                        <Card.Body>
+                            {openRequests.length > 0
+                                ? <DashboardPriorityChart requests={openRequests} />
+                                : <div className="text-muted text-center py-3">No open requests</div>}
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={4}>
+                    <Card className="table-card mb-3">
+                        <Card.Header><i className="fas fa-chart-bar mr-2" />Collections</Card.Header>
+                        <Card.Body>
+                            {charges.length > 0
+                                ? <DashboardCollectionsChart charges={charges} />
+                                : <div className="text-muted text-center py-3">No charge data</div>}
+                        </Card.Body>
+                    </Card>
+                </Col>
+                <Col md={4}>
+                    <Card className="table-card mb-3">
+                        <Card.Header><i className="fas fa-clipboard-check mr-2" />Compliance Deadlines</Card.Header>
+                        <Card.Body className="p-0">
+                            {upcomingCompliance.length === 0
+                                ? <div className="text-muted p-3">No upcoming deadlines</div>
+                                : upcomingCompliance.map(ci => (
+                                    <div key={ci.id} className="p-2 border-bottom d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div className="small font-weight-bold">{ci.law_name}</div>
+                                            <div className="small text-muted">{ci.due_date}</div>
+                                        </div>
+                                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: complianceColor(ci.due_date), display: 'inline-block', flexShrink: 0 }} />
+                                    </div>
+                                ))}
+                        </Card.Body>
+                    </Card>
+                </Col>
+            </Row>
+
             <Row>
                 <Col md={8}>
                     <Card className="table-card mb-3">
-                        <Card.Header>
-                            <i className="fas fa-bullhorn mr-2" />
-                            Recent Announcements
-                        </Card.Header>
+                        <Card.Header><i className="fas fa-bullhorn mr-2" />Recent Announcements</Card.Header>
                         <Card.Body>
-                            {announcements.length === 0 && (
-                                <p className="text-muted mb-0">
-                                    No announcements
-                                </p>
-                            )}
+                            {announcements.length === 0 && <p className="text-muted mb-0">No announcements</p>}
                             {announcements.slice(0, 5).map(a => (
-                                <div
-                                    key={a.id}
-                                    className={`announcement-card p-3 category-${a.category || 'general'}`}
-                                >
+                                <div key={a.id} className={`announcement-card p-3 category-${a.category || 'general'}`}>
                                     <strong>{a.title}</strong>
-                                    <div className="text-muted small">
-                                        {a.first_name} {a.last_name} &middot;{' '}
-                                        {new Date(
-                                            a.posted_at,
-                                        ).toLocaleDateString()}
-                                    </div>
+                                    <div className="text-muted small">{a.first_name} {a.last_name} &middot; {new Date(a.posted_at).toLocaleDateString()}</div>
                                     <div className="mt-1">{a.body}</div>
                                 </div>
                             ))}
@@ -241,48 +380,48 @@ function DashboardPage() {
                     </Card>
                 </Col>
                 <Col md={4}>
-                    <Card className="table-card mb-3">
-                        <Card.Header>
-                            <i className="fas fa-wrench mr-2" />
-                            Open Requests
-                        </Card.Header>
-                        <Card.Body className="p-0">
-                            <Table size="sm" hover>
-                                <tbody>
-                                    {requests
-                                        .filter(
-                                            r =>
-                                                r.status !== 'closed' &&
-                                                r.status !== 'resolved',
-                                        )
-                                        .slice(0, 8)
-                                        .map(r => (
+                    {can('users:read') && (
+                        <Card className="table-card mb-3">
+                            <Card.Header><i className="fas fa-history mr-2" />Recent Activity</Card.Header>
+                            <Card.Body className="p-0">
+                                {auditEntries.length === 0
+                                    ? <div className="text-muted p-3">No activity yet</div>
+                                    : auditEntries.slice(0, 5).map(e => (
+                                        <div key={e.id} className="p-2 border-bottom">
+                                            <div className="d-flex align-items-center mb-1">
+                                                <Badge variant={actionBadgeVariant(e.action)} className="mr-2" style={{ fontSize: '0.65rem' }}>{e.action}</Badge>
+                                                <small className="text-muted">{e.user_email}</small>
+                                                <small className="text-muted ml-auto">{timeAgo(e.created_at)}</small>
+                                            </div>
+                                            <div className="small text-truncate">{e.summary}</div>
+                                        </div>
+                                    ))}
+                            </Card.Body>
+                        </Card>
+                    )}
+                    {!can('users:read') && (
+                        <Card className="table-card mb-3">
+                            <Card.Header><i className="fas fa-wrench mr-2" />Open Requests</Card.Header>
+                            <Card.Body className="p-0">
+                                <Table size="sm" hover>
+                                    <tbody>
+                                        {openRequests.slice(0, 8).map(r => (
                                             <tr key={r.id}>
                                                 <td className="pl-3">
-                                                    {r.title}
-                                                    <br />
-                                                    <small className="text-muted">
-                                                        {r.unit_number ||
-                                                            'Common area'}
-                                                    </small>
+                                                    {r.title}<br />
+                                                    <small className="text-muted">{r.unit_number || 'Common area'}</small>
                                                 </td>
                                                 <td>
-                                                    <StatusBadge
-                                                        status={r.status}
-                                                    />
-                                                    <br />
-                                                    <small
-                                                        className={`priority-${r.priority}`}
-                                                    >
-                                                        {r.priority}
-                                                    </small>
+                                                    <StatusBadge status={r.status} /><br />
+                                                    <small className={`priority-${r.priority}`}>{r.priority}</small>
                                                 </td>
                                             </tr>
                                         ))}
-                                </tbody>
-                            </Table>
-                        </Card.Body>
-                    </Card>
+                                    </tbody>
+                                </Table>
+                            </Card.Body>
+                        </Card>
+                    )}
                 </Col>
             </Row>
         </div>
@@ -716,44 +855,63 @@ function MaintenancePage() {
                     <thead>
                         <tr>
                             <th>Title</th><th>Unit</th><th>Location</th>
-                            <th>Priority</th><th>Status</th><th>Assigned</th><th>Actions</th>
+                            <th>Priority</th><th>AI Triage</th><th>Status</th><th>Assigned</th><th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {filtered.map(r => (
-                            <tr key={r.id}>
-                                <td>
-                                    <strong>{r.title}</strong><br/>
-                                    <small className="text-muted">
-                                        {r.first_name} {r.last_name}
-                                    </small>
-                                </td>
-                                <td>{r.unit_number || 'Common'}</td>
-                                <td>{r.location}</td>
-                                <td>
-                                    <span className={`priority-${r.priority}`}>
-                                        {r.priority}
-                                    </span>
-                                </td>
-                                <td><StatusBadge status={r.status} /></td>
-                                <td>{r.assigned_to || '-'}</td>
-                                <td>
-                                    {r.status === 'open' && (
-                                        <Button size="sm" variant="outline-warning"
-                                            className="mr-1"
-                                            onClick={() => updateStatus(r.id, 'in_progress')}>
-                                            Start
-                                        </Button>
-                                    )}
-                                    {r.status === 'in_progress' && (
-                                        <Button size="sm" variant="outline-success"
-                                            onClick={() => updateStatus(r.id, 'resolved')}>
-                                            Resolve
-                                        </Button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
+                        {filtered.map(r => {
+                            let triage = null;
+                            if (r.triage_json) { try { triage = JSON.parse(r.triage_json); } catch(e) {} }
+                            return (
+                                <tr key={r.id}>
+                                    <td>
+                                        <strong>{r.title}</strong><br/>
+                                        <small className="text-muted">
+                                            {r.first_name} {r.last_name}
+                                        </small>
+                                    </td>
+                                    <td>{r.unit_number || 'Common'}</td>
+                                    <td>{r.location}</td>
+                                    <td>
+                                        <span className={`priority-${r.priority}`}>
+                                            {r.priority}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {triage ? (
+                                            <span title={triage.urgency_reason || triage.summary}>
+                                                <span className="badge badge-secondary mr-1" style={{ fontSize: '0.7rem' }}>
+                                                    {triage.category}
+                                                </span>
+                                                {triage.suggested_priority !== r.priority && (
+                                                    <span className={`badge badge-${triage.suggested_priority === 'emergency' || triage.suggested_priority === 'high' ? 'danger' : 'info'} mr-1`}
+                                                        style={{ fontSize: '0.7rem' }}>
+                                                        AI: {triage.suggested_priority}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        ) : <span className="text-muted small">—</span>}
+                                    </td>
+                                    <td><StatusBadge status={r.status} /></td>
+                                    <td>{r.assigned_to || '-'}</td>
+                                    <td>
+                                        {r.status === 'open' && (
+                                            <Button size="sm" variant="outline-warning"
+                                                className="mr-1"
+                                                onClick={() => updateStatus(r.id, 'in_progress')}>
+                                                Start
+                                            </Button>
+                                        )}
+                                        {r.status === 'in_progress' && (
+                                            <Button size="sm" variant="outline-success"
+                                                onClick={() => updateStatus(r.id, 'resolved')}>
+                                                Resolve
+                                            </Button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </Table>
             </Card>
@@ -2215,6 +2373,69 @@ function FeedbackPage() {
     );
 }
 
+// ── Audit Log ──
+function AuditPage() {
+    const { Table, Badge, Form } = ReactBootstrap;
+    const [entries, setEntries] = React.useState([]);
+    const [resourceTypeFilter, setResourceTypeFilter] = React.useState('');
+
+    const load = (type) => {
+        const qs = type ? `?resource_type=${type}` : '';
+        api.get(`/api/audit${qs}`).then(setEntries).catch(() => {});
+    };
+
+    React.useEffect(() => { load(''); }, []);
+
+    const handleFilter = (e) => {
+        const v = e.target.value;
+        setResourceTypeFilter(v);
+        load(v);
+    };
+
+    const actionVariant = (action) => ({ CREATE: 'success', UPDATE: 'primary', DELETE: 'danger' }[action] || 'secondary');
+
+    const fmtDate = (dt) => dt ? new Date(dt).toLocaleString() : '—';
+
+    const resourceTypes = ['', 'resident', 'document', 'maintenance', 'finance'];
+
+    return (
+        <div>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+                <h4 className="mb-0">Audit Log</h4>
+                <Form.Control as="select" value={resourceTypeFilter} onChange={handleFilter}
+                    style={{ width: 'auto' }}>
+                    <option value="">All Resource Types</option>
+                    {resourceTypes.filter(r => r).map(r => (
+                        <option key={r} value={r}>{r}</option>
+                    ))}
+                </Form.Control>
+            </div>
+            {entries.length === 0 && <div className="text-muted">No audit entries found.</div>}
+            {entries.length > 0 && (
+                <Table hover responsive size="sm">
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>User</th><th>Role</th><th>Action</th><th>Resource</th><th>Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {entries.map(e => (
+                            <tr key={e.id}>
+                                <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.created_at)}</td>
+                                <td>{e.user_email || '—'}</td>
+                                <td><Badge variant="secondary">{e.user_role || '—'}</Badge></td>
+                                <td><Badge variant={actionVariant(e.action)}>{e.action}</Badge></td>
+                                <td>{e.resource_type}{e.resource_id ? <span className="text-muted ml-1 small">#{e.resource_id.slice(0, 8)}</span> : ''}</td>
+                                <td style={{ maxWidth: 300 }}>{e.summary}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </Table>
+            )}
+        </div>
+    );
+}
+
 // ── Main App ──
 function App() {
     const { Navbar, Container, Row, Col, Button } = ReactBootstrap;
@@ -2257,6 +2478,7 @@ function App() {
         packages:      PackagesPage,
         users:         UsersPage,
         feedback:      FeedbackPage,
+        audit:         AuditPage,
     };
 
     const PageComponent = pages[page] || DashboardPage;
