@@ -3,6 +3,8 @@ const router = express.Router();
 const db = require('../persistence');
 const { v4: uuidv4 } = require('uuid');
 const { requirePermission } = require('../middleware/auth');
+const { auditLog } = require('../middleware/auditLog');
+const { triageRequest } = require('../services/maintenanceTriage');
 
 router.get('/', requirePermission('maintenance:read'), async (req, res, next) => {
     try {
@@ -28,17 +30,24 @@ router.post('/', requirePermission('maintenance:write'), async (req, res, next) 
     try {
         const request = { id: uuidv4(), ...req.body };
         await db.storeMaintenanceRequest(request);
+        if (process.env.GEMINI_API_KEY && (request.title || request.description)) {
+            triageRequest({ title: request.title, description: request.description, location: request.location })
+                .then(t => db.updateMaintenanceRequest(request.id, { triage_json: JSON.stringify(t) }))
+                .catch(err => console.error('[triage]', request.id, err.message));
+        }
         res.status(201).json(request);
     } catch (err) { next(err); }
 });
 
 // Updating status / assigning requires manage permission
-router.put('/:id', requirePermission('maintenance:manage'), async (req, res, next) => {
-    try {
-        await db.updateMaintenanceRequest(req.params.id, req.body);
-        res.json(await db.getMaintenanceRequest(req.params.id));
-    } catch (err) { next(err); }
-});
+router.put('/:id', requirePermission('maintenance:manage'),
+    auditLog('UPDATE', 'maintenance', (req) => req.params.id, (req) => `Updated maintenance request ${req.params.id}`),
+    async (req, res, next) => {
+        try {
+            await db.updateMaintenanceRequest(req.params.id, req.body);
+            res.json(await db.getMaintenanceRequest(req.params.id));
+        } catch (err) { next(err); }
+    });
 
 router.delete('/:id', requirePermission('maintenance:manage'), async (req, res, next) => {
     try {

@@ -308,6 +308,7 @@ async function updateMaintenanceRequest(id, mr) {
     if (mr.status !== undefined) { sets.push('status=?'); params.push(mr.status); }
     if (mr.assigned_to !== undefined) { sets.push('assigned_to=?'); params.push(mr.assigned_to); }
     if (mr.resolved_at !== undefined) { sets.push('resolved_at=?'); params.push(mr.resolved_at); }
+    if (mr.triage_json !== undefined) { sets.push('triage_json=?'); params.push(mr.triage_json); }
     sets.push("updated_at=datetime('now')");
     params.push(id);
     query(`UPDATE maintenance_requests SET ${sets.join(', ')} WHERE id=?`, params);
@@ -663,6 +664,25 @@ async function removeViolation(id) {
     query('DELETE FROM violations WHERE id=?', [id]);
 }
 
+// ── Audit Log ──
+async function storeAuditEntry(entry) {
+    query(
+        `INSERT INTO audit_log (id, user_id, user_email, user_role, action, resource_type, resource_id, summary, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [entry.id, entry.user_id || null, entry.user_email, entry.user_role,
+         entry.action, entry.resource_type, entry.resource_id || null, entry.summary || null],
+    );
+}
+async function getAuditLog({ resource_type, resource_id, limit } = {}) {
+    let sql = 'SELECT * FROM audit_log WHERE 1=1';
+    const params = [];
+    if (resource_type) { sql += ' AND resource_type=?'; params.push(resource_type); }
+    if (resource_id) { sql += ' AND resource_id=?'; params.push(resource_id); }
+    sql += ' ORDER BY created_at DESC';
+    sql += ` LIMIT ${parseInt(limit) || 100}`;
+    return query(sql, params);
+}
+
 // ── Feedback ──
 async function storeFeedback(f) {
     query(
@@ -701,4 +721,5 @@ module.exports = {
     getServiceProviders, getServiceProvider, getServiceProviderByApiKeyHash,
     storeServiceProvider, updateServiceProvider, removeServiceProvider,
     storeFeedback, getFeedback,
+    storeAuditEntry, getAuditLog,
 };

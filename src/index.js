@@ -25,6 +25,7 @@ const packagesRouter = require('./routes/packages');
 const providersRouter = require('./routes/providers');
 const butterflymxRouter = require('./routes/integrations/butterflymx');
 const feedbackRouter = require('./routes/feedback');
+const auditRouter = require('./routes/audit');
 
 app.use(logger);
 app.use(require('body-parser').json());
@@ -56,6 +57,7 @@ app.use('/api/packages', packagesRouter);
 app.use('/api/providers', providersRouter);
 app.use('/api/integrations/butterflymx', butterflymxRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/audit', auditRouter);
 
 app.use(errorHandler);
 

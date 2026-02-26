@@ -7,6 +7,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { requirePermission } = require('../middleware/auth');
 const { analyzeDocument } = require('../services/documentAnalysis');
+const { auditLog } = require('../middleware/auditLog');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../../data/documents');
 
@@ -127,15 +128,17 @@ router.post('/', requirePermission('documents:write'), async (req, res, next) =>
 });
 
 // DELETE /api/documents/:id - Delete document and remove file
-router.delete('/:id', requirePermission('documents:write'), async (req, res, next) => {
-    try {
-        const doc = await db.removeDocument(req.params.id);
-        if (doc && doc.file_path) {
-            const fullPath = path.join(UPLOAD_DIR, doc.file_path);
-            if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-        }
-        res.sendStatus(200);
-    } catch (err) { next(err); }
-});
+router.delete('/:id', requirePermission('documents:write'),
+    auditLog('DELETE', 'document', (req) => req.params.id, (req) => `Deleted document ${req.params.id}`),
+    async (req, res, next) => {
+        try {
+            const doc = await db.removeDocument(req.params.id);
+            if (doc && doc.file_path) {
+                const fullPath = path.join(UPLOAD_DIR, doc.file_path);
+                if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+            }
+            res.sendStatus(200);
+        } catch (err) { next(err); }
+    });
 
 module.exports = router;
