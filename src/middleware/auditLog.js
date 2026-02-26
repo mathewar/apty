@@ -3,9 +3,8 @@ const db = require('../persistence');
 
 function auditLog(action, resourceType, getId, getSummary) {
     return (req, res, next) => {
-        const orig = res.json.bind(res);
-        res.json = (body) => {
-            if (res.statusCode < 400 && req.user) {
+        const doLog = (body) => {
+            if (req.user) {
                 db.storeAuditEntry({
                     id: uuidv4(),
                     user_id: req.user.id || null,
@@ -17,8 +16,20 @@ function auditLog(action, resourceType, getId, getSummary) {
                     summary: getSummary(req, body),
                 }).catch(() => {});
             }
-            return orig(body);
         };
+
+        const origJson = res.json.bind(res);
+        res.json = (body) => {
+            if (res.statusCode < 400) doLog(body);
+            return origJson(body);
+        };
+
+        const origSendStatus = res.sendStatus.bind(res);
+        res.sendStatus = (code) => {
+            if (code < 400) doLog(null);
+            return origSendStatus(code);
+        };
+
         next();
     };
 }

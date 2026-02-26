@@ -3,17 +3,20 @@
 const path = require('path');
 const fs = require('fs');
 
-const TEST_DB_PATH = path.join(__dirname, '..', '..', '..', 'data', 'test.db');
-const PORT = 3001;
+// Unique DB per worker so suites can run in parallel
+const TEST_DB_PATH = path.join(
+    __dirname, '..', '..', '..', 'data',
+    `test-${process.pid}-${Date.now()}.db`,
+);
 
 let server;
 let dbRef;
+let actualPort;
 
 async function startServer() {
     // Point SQLite at a clean test database before requiring any app code
     process.env.SQLITE_DB = TEST_DB_PATH;
 
-    // Remove stale test DB so each run starts from scratch
     if (fs.existsSync(TEST_DB_PATH)) {
         fs.unlinkSync(TEST_DB_PATH);
     }
@@ -25,7 +28,11 @@ async function startServer() {
     await db.init();
 
     return new Promise((resolve) => {
-        server = app.listen(PORT, () => resolve());
+        // Port 0 → OS assigns a free port, eliminating conflicts between parallel workers
+        server = app.listen(0, () => {
+            actualPort = server.address().port;
+            resolve();
+        });
     });
 }
 
@@ -43,4 +50,8 @@ function getDb() {
     return dbRef;
 }
 
-module.exports = { startServer, stopServer, getDb, PORT };
+function getPort() {
+    return actualPort;
+}
+
+module.exports = { startServer, stopServer, getDb, getPort };

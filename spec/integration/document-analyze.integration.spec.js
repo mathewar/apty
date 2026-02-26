@@ -10,10 +10,10 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
-const { startServer, stopServer, getDb, PORT } = require('./helpers/server');
+const { startServer, stopServer, getDb, getPort } = require('./helpers/server');
 const { seedUsers } = require('./helpers/seed');
 
-const BASE = `http://localhost:${PORT}`;
+let BASE;
 const PDF_PATH = path.join(__dirname, '../../data/250_254_W82nd_Street_Maintenance_Increase_2026.pdf');
 
 // Helper: POST JSON, returns { status, body }
@@ -21,7 +21,7 @@ function postJSON(path, body, cookie) {
     return new Promise((resolve, reject) => {
         const data = JSON.stringify(body);
         const req = http.request({
-            hostname: 'localhost', port: PORT, path, method: 'POST',
+            hostname: 'localhost', port: getPort(), path, method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(data),
@@ -45,7 +45,7 @@ function postJSON(path, body, cookie) {
 function getJSON(urlPath, cookie) {
     return new Promise((resolve, reject) => {
         const req = http.request({
-            hostname: 'localhost', port: PORT, path: urlPath, method: 'GET',
+            hostname: 'localhost', port: getPort(), path: urlPath, method: 'GET',
             headers: { ...(cookie ? { Cookie: cookie } : {}) },
         }, (res) => {
             let raw = '';
@@ -69,7 +69,7 @@ function uploadFile(urlPath, filePath, fields, cookie) {
 
         const headers = { ...form.getHeaders(), ...(cookie ? { Cookie: cookie } : {}) };
         const req = http.request({
-            hostname: 'localhost', port: PORT, path: urlPath, method: 'POST', headers,
+            hostname: 'localhost', port: getPort(), path: urlPath, method: 'POST', headers,
         }, (res) => {
             let raw = '';
             res.on('data', d => raw += d);
@@ -90,6 +90,7 @@ beforeAll(async () => {
         console.warn('GEMINI_API_KEY not set — analysis assertions will be skipped');
     }
     await startServer();
+    BASE = `http://localhost:${getPort()}`;
     await seedUsers(getDb());
 
     // Login and capture session cookie

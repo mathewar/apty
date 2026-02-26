@@ -4,12 +4,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { startServer, stopServer, getDb, PORT } = require('./helpers/server');
+const { startServer, stopServer, getDb, getPort } = require('./helpers/server');
 const { seedUsers } = require('./helpers/seed');
 const { launchBrowser, newPage, closeBrowser } = require('./helpers/browser');
 const { loginAs } = require('./helpers/login');
 
-const BASE_URL = `http://localhost:${PORT}`;
+let BASE_URL;
 const UI_TIMEOUT = 60000;
 
 const MINIMAL_PDF = Buffer.from(
@@ -37,6 +37,7 @@ async function navigateToDocuments(page) {
 
 beforeAll(async () => {
     await startServer();
+    BASE_URL = `http://localhost:${getPort()}`;
     await seedUsers(getDb());
     await launchBrowser();
 
@@ -46,7 +47,7 @@ beforeAll(async () => {
         const cookie = await new Promise((resolve, reject) => {
             const body = JSON.stringify({ email, password });
             const req = http.request({
-                hostname: 'localhost', port: PORT, path: '/api/auth/login', method: 'POST',
+                hostname: 'localhost', port: getPort(), path: '/api/auth/login', method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
             }, (res) => {
                 const raw = res.headers['set-cookie'];
@@ -115,6 +116,9 @@ test('Upload modal opens with file input when Upload Document clicked', async ()
 }, UI_TIMEOUT);
 
 test('uploading a PDF adds a doc card to the list', async () => {
+    // Ensure the title input is visible (modal should be open from previous test)
+    await adminPage.waitForSelector('input[placeholder="e.g. Annual Budget 2024"]', { visible: true, timeout: UI_TIMEOUT });
+
     // Fill in title
     await adminPage.evaluate(() => {
         const input = document.querySelector('input[placeholder="e.g. Annual Budget 2024"]');
@@ -127,6 +131,16 @@ test('uploading a PDF adds a doc card to the list', async () => {
     fs.writeFileSync(tmpPdf, MINIMAL_PDF);
     const fileInput = await adminPage.$('input[type="file"]');
     await fileInput.uploadFile(tmpPdf);
+
+    // Wait for React state to update (Upload button becomes enabled)
+    await adminPage.waitForFunction(
+        () => {
+            const btns = [...document.querySelectorAll('.modal-footer button')];
+            const upload = btns.find(b => b.textContent.trim() === 'Upload');
+            return upload && !upload.disabled;
+        },
+        { timeout: UI_TIMEOUT },
+    );
 
     // Click Upload via evaluate
     await adminPage.evaluate(() => {

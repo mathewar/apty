@@ -12,7 +12,8 @@ async function launchBrowser() {
 }
 
 async function newPage() {
-    return browser.newPage();
+    const ctx = await browser.createBrowserContext();
+    return ctx.newPage();
 }
 
 async function closeBrowser() {

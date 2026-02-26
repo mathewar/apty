@@ -6,7 +6,7 @@
   "scripts": {
     "prettify": "prettier -l --write \"**/*.js\"",
     "test": "jest",
-    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.json --runInBand --forceExit",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.integration.json --forceExit",
     "dev": "nodemon src/index.js",
     "seed": "node src/persistence/seed.js",
     "start": "node src/index.js"

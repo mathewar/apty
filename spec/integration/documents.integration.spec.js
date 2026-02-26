@@ -1,13 +1,13 @@
 'use strict';
 
-const { startServer, stopServer, getDb, PORT } = require('./helpers/server');
+const { startServer, stopServer, getDb, getPort } = require('./helpers/server');
 const { seedUsers } = require('./helpers/seed');
 const http = require('http');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
 
-const BASE_URL = `http://localhost:${PORT}`;
+let BASE_URL;
 
 // Minimal valid single-page PDF
 const MINIMAL_PDF = Buffer.from(
@@ -24,7 +24,7 @@ function postJson(path, body, cookieHeader) {
     return new Promise((resolve, reject) => {
         const data = JSON.stringify(body);
         const opts = {
-            hostname: 'localhost', port: PORT, path, method: 'POST',
+            hostname: 'localhost', port: getPort(), path, method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(data),
@@ -53,7 +53,7 @@ function uploadFile(formData, cookieHeader) {
             ...(cookieHeader ? { Cookie: cookieHeader } : {}),
         };
         const opts = {
-            hostname: 'localhost', port: PORT,
+            hostname: 'localhost', port: getPort(),
             path: '/api/documents/upload',
             method: 'POST',
             headers,
@@ -75,7 +75,7 @@ function uploadFile(formData, cookieHeader) {
 function getJson(path, cookieHeader) {
     return new Promise((resolve, reject) => {
         const opts = {
-            hostname: 'localhost', port: PORT, path,
+            hostname: 'localhost', port: getPort(), path,
             headers: cookieHeader ? { Cookie: cookieHeader } : {},
         };
         http.get(opts, (res) => {
@@ -94,6 +94,7 @@ let residentCookie;
 
 beforeAll(async () => {
     await startServer();
+    BASE_URL = `http://localhost:${getPort()}`;
     await seedUsers(getDb());
 
     // Log in as admin

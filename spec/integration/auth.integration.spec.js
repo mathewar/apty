@@ -1,15 +1,16 @@
 'use strict';
 
-const { startServer, stopServer, getDb, PORT } = require('./helpers/server');
+const { startServer, stopServer, getDb, getPort } = require('./helpers/server');
 const { seedUsers } = require('./helpers/seed');
 const { launchBrowser, newPage, closeBrowser } = require('./helpers/browser');
 const { loginAs, logout } = require('./helpers/login');
 const http = require('http');
 
-const BASE_URL = `http://localhost:${PORT}`;
+let BASE_URL;
 
 beforeAll(async () => {
     await startServer();
+    BASE_URL = `http://localhost:${getPort()}`;
     await seedUsers(getDb());
     await launchBrowser();
 });
