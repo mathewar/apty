@@ -1,6 +1,7 @@
 body {
     background-color: #f5f6fa;
     font-family: 'Lato', sans-serif;
+    font-size: 16px;
     margin: 0;
     padding: 0;
 }
@@ -19,10 +20,13 @@ body {
 }
 .sidebar .nav-link {
     color: #bdc3c7;
-    padding: 0.6rem 1.2rem;
-    font-size: 0.9rem;
+    padding: 0.75rem 1.2rem;
+    font-size: 0.95rem;
     border-radius: 4px;
     margin: 2px 8px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
 }
 .sidebar .nav-link:hover {
     background: #34495e;
@@ -36,6 +40,7 @@ body {
     width: 20px;
     text-align: center;
     margin-right: 8px;
+    flex-shrink: 0;
 }
 .sidebar .sidebar-heading {
     color: #7f8c8d;
@@ -140,6 +145,12 @@ body {
     color: white;
 }
 .modal-header .close { color: white; }
+
+/* Prevent iOS auto-zoom on input focus (requires 16px minimum) */
+.form-control,
+.custom-select {
+    font-size: 1rem;
+}
 
 /* ── Login ── */
 .login-page {
@@ -333,18 +344,21 @@ body {
 
 /* ── Responsive ── */
 @media (max-width: 767.98px) {
+
+    /* === LAYOUT === */
+
     /* Hide sidebar column from grid flow on mobile */
     .sidebar-col {
         display: none !important;
     }
 
-    /* Sidebar becomes a fixed off-canvas panel on mobile */
+    /* Sidebar: fixed off-canvas panel, wider for easier tap targets */
     .sidebar {
         position: fixed;
-        top: 56px;
+        top: 60px;
         left: 0;
         bottom: 0;
-        width: 260px;
+        width: 280px;
         min-height: auto;
         z-index: 1050;
         transform: translateX(-100%);
@@ -354,33 +368,155 @@ body {
     }
     .sidebar.sidebar-open {
         transform: translateX(0);
-        box-shadow: 4px 0 16px rgba(0,0,0,0.3);
+        box-shadow: 4px 0 20px rgba(0,0,0,0.35);
     }
 
-    /* Reduce padding in main content area */
+    /* Full-width content on mobile */
     .main-content {
         padding: 1rem 0.75rem;
     }
 
-    /* Smaller stat numbers */
-    .stat-number {
-        font-size: 1.5rem;
+    /* === NAVBAR === */
+
+    /* Taller navbar for easier touch */
+    .navbar {
+        min-height: 60px;
+        padding-top: 0.6rem;
+        padding-bottom: 0.6rem;
     }
 
-    /* Doc cards stack vertically */
+    /* Hide email in navbar — already shown in sidebar footer */
+    .navbar-text {
+        display: none;
+    }
+
+    /* Sign Out button: push to right & accessible size */
+    .navbar .btn-outline-light {
+        margin-left: auto;
+        min-height: 44px;
+        padding: 0.45rem 0.9rem;
+        font-size: 0.95rem;
+    }
+
+    /* === NAVIGATION (sidebar) === */
+
+    /* Sidebar nav links: large touch targets for 50+ users (min 54px) */
+    .sidebar .nav-link {
+        padding: 1rem 1.2rem;
+        font-size: 1.05rem;
+        min-height: 56px;
+        margin: 2px 6px;
+    }
+
+    /* Hamburger button: easy-to-tap (48×48px) */
+    .navbar-toggler-mobile {
+        min-width: 48px;
+        min-height: 48px;
+        padding: 10px 14px;
+        font-size: 1.15rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* === TYPOGRAPHY === */
+
+    h4 { font-size: 1.25rem; }
+    h5 { font-size: 1.1rem; }
+
+    /* === TOUCH TARGETS: 44–56px minimum for 50+ users === */
+
+    /* All buttons: comfortable touch target */
+    .btn {
+        min-height: 44px;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    /* Small buttons still meet 44px minimum */
+    .btn-sm {
+        min-height: 44px;
+        font-size: 0.9rem;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .btn-lg {
+        min-height: 52px;
+    }
+
+    /* === FORM CONTROLS === */
+
+    /* 16px font prevents iOS auto-zoom on tap; 48px height for easy tapping */
+    .form-control {
+        font-size: 16px !important;
+        min-height: 48px;
+        padding: 0.6rem 0.75rem;
+    }
+    select.form-control {
+        min-height: 48px;
+    }
+    textarea.form-control {
+        min-height: unset;
+        height: auto;
+    }
+
+    /* === STAT CARDS: 2-per-row grid on mobile === */
+    .main-content .col-md-3 {
+        -webkit-flex: 0 0 50%;
+        flex: 0 0 50%;
+        max-width: 50%;
+        margin-bottom: 0.75rem;
+    }
+
+    /* Slightly tighter card padding so numbers fit at 50% width */
+    .stat-card .card-body {
+        padding: 0.9rem 0.75rem;
+    }
+
+    .stat-number {
+        font-size: 1.6rem;
+    }
+    .stat-label {
+        font-size: 0.8rem;
+        margin-top: 0.2rem;
+    }
+
+    /* === TABLES === */
+
+    /* Readable cell size — NOT reduced for 50+ users */
+    .table-card td,
+    .table-card th {
+        font-size: 0.88rem;
+        padding: 0.65rem 0.5rem;
+    }
+
+    /* === FILTER BUTTONS === */
+
+    /* Allow filter rows to wrap and add spacing between rows */
+    .mb-3 > .btn,
+    .mb-2 > .btn {
+        margin-bottom: 0.4rem;
+    }
+
+    /* === DOC CARDS === */
+
+    /* Stack doc info and actions vertically */
     .doc-card {
         flex-direction: column;
         align-items: flex-start;
     }
     .doc-card-actions {
         margin-top: 0.5rem;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    .doc-card-title {
+        white-space: normal;
+        word-break: break-word;
     }
 
-    /* Compact table text */
-    .table-card td, .table-card th {
-        font-size: 0.82rem;
-        padding: 0.4rem 0.5rem;
-    }
+    /* === MODALS === */
 
     /* Modals use most of screen width */
     .modal-dialog {
@@ -388,18 +524,52 @@ body {
         max-width: calc(100vw - 1rem);
     }
 
-    /* Charts a bit smaller so they fit without scrolling */
+    /* Modal footer buttons: each takes equal share */
+    .modal-footer {
+        padding: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .modal-footer > .btn {
+        flex: 1;
+        min-width: 100px;
+    }
+
+    /* Larger modal body text for readability */
+    .modal-body {
+        font-size: 1rem;
+    }
+
+    /* === CHARTS === */
+
+    /* Slightly smaller charts on mobile so they fit without horizontal scroll */
     .chart-container canvas {
         max-height: 200px;
     }
 
-    /* Prevent long words breaking layout */
+    /* === ANNOUNCEMENTS === */
+
     .announcement-card {
         word-break: break-word;
     }
 
-    /* Login card gets a small margin so it doesn't touch screen edges */
+    /* === LOGIN === */
+
+    /* Give login card a safe margin from screen edges */
     .login-card {
         margin: 0 1rem;
+    }
+    .login-page {
+        padding: 1rem;
+        align-items: flex-start;
+        padding-top: 3rem;
+    }
+
+    /* === FEEDBACK BUTTON === */
+
+    /* Keep feedback button accessible and out of system UI (iOS home indicator) */
+    .feedback-btn {
+        bottom: 20px;
+        right: 16px;
     }
 }

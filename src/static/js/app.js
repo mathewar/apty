@@ -2252,11 +2252,13 @@ function FeedbackButton({ currentPage }) {
         <React.Fragment>
             <button
                 onClick={open}
+                className="feedback-btn"
                 style={{
-                    position: 'fixed', bottom: '24px', right: '24px', zIndex: 1050,
+                    position: 'fixed', bottom: '24px', right: '20px', zIndex: 1050,
                     background: '#3498db', color: '#fff', border: 'none', borderRadius: '50px',
-                    padding: '10px 18px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                    cursor: 'pointer', fontSize: '14px', fontWeight: 600,
+                    padding: '12px 20px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    cursor: 'pointer', fontSize: '15px', fontWeight: 600,
+                    minHeight: '48px', display: 'inline-flex', alignItems: 'center',
                 }}
                 title="Share feedback"
             >
