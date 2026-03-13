@@ -68,7 +68,7 @@ function StatusBadge({ status }) {
 }
 
 // ── Sidebar ──
-function Sidebar({ page, setPage, user }) {
+function Sidebar({ page, setPage, user, isOpen, onClose }) {
     const { Nav } = ReactBootstrap;
     const perms = (user && user.permissions) || [];
     const can = (p) => perms.includes(p);
@@ -92,14 +92,14 @@ function Sidebar({ page, setPage, user }) {
     ].filter(i => i.show);
 
     return (
-        <div className="sidebar">
+        <div className={`sidebar${isOpen ? ' sidebar-open' : ''}`}>
             <div className="sidebar-heading">Navigation</div>
             <Nav className="flex-column">
                 {items.map(item => (
                     <Nav.Link
                         key={item.key}
                         className={page === item.key ? 'active' : ''}
-                        onClick={() => setPage(item.key)}
+                        onClick={() => { setPage(item.key); if (onClose) onClose(); }}
                     >
                         <i className={`fas ${item.icon}`} /> {item.label}
                     </Nav.Link>
@@ -403,7 +403,7 @@ function DashboardPage({ user }) {
                         <Card className="table-card mb-3">
                             <Card.Header><i className="fas fa-wrench mr-2" />Open Requests</Card.Header>
                             <Card.Body className="p-0">
-                                <Table size="sm" hover>
+                                <Table size="sm" hover responsive>
                                     <tbody>
                                         {openRequests.slice(0, 8).map(r => (
                                             <tr key={r.id}>
@@ -2442,6 +2442,7 @@ function App() {
     const [user, setUser] = React.useState(undefined); // undefined = loading, null = logged out
     const [page, setPage] = React.useState('dashboard');
     const [initialDocId, setInitialDocId] = React.useState(null);
+    const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
     // Check for existing session on load; also parse deep-link hash
     React.useEffect(() => {
@@ -2486,6 +2487,9 @@ function App() {
     return (
         <div>
             <Navbar bg="dark" variant="dark" expand="lg">
+                <button className="navbar-toggler-mobile d-md-none" onClick={() => setSidebarOpen(o => !o)} aria-label="Toggle navigation">
+                    <i className="fas fa-bars" />
+                </button>
                 <Navbar.Brand href="#" onClick={() => setPage('dashboard')}>
                     <i className="fas fa-home mr-2" />Apty
                 </Navbar.Brand>
@@ -2497,10 +2501,11 @@ function App() {
                     Sign Out
                 </Button>
             </Navbar>
+            {sidebarOpen && <div className="sidebar-overlay d-md-none" onClick={() => setSidebarOpen(false)} />}
             <Container fluid className="p-0">
                 <Row noGutters>
-                    <Col md={2}>
-                        <Sidebar page={page} setPage={setPage} user={user} />
+                    <Col md={2} className="sidebar-col">
+                        <Sidebar page={page} setPage={setPage} user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                     </Col>
                     <Col md={10} className="main-content">
                         <PageComponent user={user} initialDocId={page === 'documents' ? initialDocId : null} />

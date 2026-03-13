@@ -304,9 +304,102 @@ body {
     color: #f39c12;
 }
 
+/* ── Mobile hamburger button ── */
+.navbar-toggler-mobile {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.85);
+    border-radius: 4px;
+    padding: 4px 10px;
+    margin-right: 0.75rem;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1.5;
+    flex-shrink: 0;
+}
+.navbar-toggler-mobile:focus { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+.navbar-toggler-mobile:hover { background: rgba(255,255,255,0.1); }
+
+/* ── Sidebar overlay (mobile backdrop) ── */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1040;
+}
+
 /* ── Responsive ── */
-@media (max-width: 768px) {
-    .sidebar { min-height: auto; }
-    .stat-number { font-size: 1.5rem; }
-    .doc-card { flex-direction: column; align-items: flex-start; }
+@media (max-width: 767.98px) {
+    /* Hide sidebar column from grid flow on mobile */
+    .sidebar-col {
+        display: none !important;
+    }
+
+    /* Sidebar becomes a fixed off-canvas panel on mobile */
+    .sidebar {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        bottom: 0;
+        width: 260px;
+        min-height: auto;
+        z-index: 1050;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        overflow-y: auto;
+        padding-bottom: 0;
+    }
+    .sidebar.sidebar-open {
+        transform: translateX(0);
+        box-shadow: 4px 0 16px rgba(0,0,0,0.3);
+    }
+
+    /* Reduce padding in main content area */
+    .main-content {
+        padding: 1rem 0.75rem;
+    }
+
+    /* Smaller stat numbers */
+    .stat-number {
+        font-size: 1.5rem;
+    }
+
+    /* Doc cards stack vertically */
+    .doc-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .doc-card-actions {
+        margin-top: 0.5rem;
+    }
+
+    /* Compact table text */
+    .table-card td, .table-card th {
+        font-size: 0.82rem;
+        padding: 0.4rem 0.5rem;
+    }
+
+    /* Modals use most of screen width */
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100vw - 1rem);
+    }
+
+    /* Charts a bit smaller so they fit without scrolling */
+    .chart-container canvas {
+        max-height: 200px;
+    }
+
+    /* Prevent long words breaking layout */
+    .announcement-card {
+        word-break: break-word;
+    }
+
+    /* Login card gets a small margin so it doesn't touch screen edges */
+    .login-card {
+        margin: 0 1rem;
+    }
 }
