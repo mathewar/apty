@@ -80,6 +80,15 @@ if (require.main === module) {
     process.on('SIGINT', gracefulShutdown);
     process.on('SIGTERM', gracefulShutdown);
     process.on('SIGUSR2', gracefulShutdown); // Sent by nodemon
+
+    process.on('uncaughtException', (err) => {
+        console.error('[uncaughtException]', err);
+        gracefulShutdown();
+    });
+
+    process.on('unhandledRejection', (reason) => {
+        console.error('[unhandledRejection]', reason);
+    });
 }
 
 module.exports = { app, db };
